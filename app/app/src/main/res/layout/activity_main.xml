@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="disconnected"
+            android:textSize="16sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:paddingBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/host"
+                android:layout_width="0dp"
+                android:layout_weight="3"
+                android:layout_height="wrap_content"
+                android:hint="deskbuddy.local or IP"
+                android:inputType="textUri" />
+
+            <EditText
+                android:id="@+id/port"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="81"
+                android:inputType="number" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button android:id="@+id/connect" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Connect" />
+            <Button android:id="@+id/find" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Find" />
+            <Button android:id="@+id/disconnect" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Stop" />
+        </LinearLayout>
+
+        <Button android:id="@+id/notifAccess" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Grant notification access" />
+
+        <Switch android:id="@+id/forward" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Forward phone notifications"
+            android:paddingTop="8dp" android:paddingBottom="8dp" />
+
+        <Switch android:id="@+id/echo" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Voice echo test (repeat what I say)"
+            android:paddingTop="8dp" android:paddingBottom="8dp" />
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Mochi's face" android:paddingTop="12dp" android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/faces"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+
+        <LinearLayout
+            android:id="@+id/faces2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Screen" android:paddingTop="12dp" android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/screens"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Volume" android:paddingTop="12dp" android:textStyle="bold" />
+
+        <SeekBar android:id="@+id/volume" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:max="100" />
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Make Mochi say something" android:paddingTop="12dp" android:textStyle="bold" />
+
+        <EditText android:id="@+id/sayText" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:hint="Hello Parinith!" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button android:id="@+id/say" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Speak" />
+            <Button android:id="@+id/testNotify" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Test notification" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
