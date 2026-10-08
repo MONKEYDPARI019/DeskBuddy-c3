@@ -25,29 +25,35 @@ Source of truth: `MASTER_PROMPT_DeskBuddy-C3.md` (in `D:\ard\c3bud`). This file 
 - [x] A4 README stub
 
 ### B — firmware build + images
-- [ ] B1 `scripts/merge_firmware.py` (pio run → pio project metadata → esptool merge-bin → versioned .bin + SHA256SUMS), logic in `deskbuddy.firmware`
-- [ ] B2 `manifest.json`
+- [x] B1 `scripts/merge_firmware.py` (pio run → pio project metadata → esptool merge-bin → versioned .bin + SHA256SUMS), logic in `deskbuddy.firmware`
+- [x] B2 `manifest.json`
 - [x] B3 host tests green (537 checks)
-- [ ] B4 local build of `c3` + `c3-battery` with isolated `PLATFORMIO_CORE_DIR`
+- [x] B4 local build of `c3` + `c3-battery` with isolated `PLATFORMIO_CORE_DIR` (D:\.deskbuddy\platformio; C: was full)
 
 ### C — CI/CD
-- [ ] `ci.yml`: firmware builds + host tests, ruff + pytest matrix (ubuntu/windows × 3.9/3.12), Android skip notice
-- [ ] `release.yml`: tag ↔ FW_VERSION check, build + merge, GitHub Release with assets + CHANGELOG notes
+- [x] `ci.yml`: firmware builds + host tests, ruff + pytest matrix (ubuntu/windows × 3.9/3.12), Android skip notice
+- [x] `release.yml`: tag ↔ FW_VERSION check, build + merge, GitHub Release with assets + CHANGELOG notes
 
 ### D — `deskbuddy` CLI (`tool/`)
-- [ ] package skeleton (pyproject, hatchling, console script)
-- [ ] core modules: ports, serial_io, monitor, github, flasher, firmware(merge), builder, doctor
-- [ ] commands: ports, doctor, versions, get, flash, monitor, cmd, status, link, wifi-forget, reboot, build, ui, --version
+- [x] package skeleton (pyproject, hatchling, console script)
+- [x] core modules: ports, serial_io, monitor, github, flasher, firmware(merge), builder, doctor
+- [x] commands: ports, doctor, versions, get, flash, monitor, cmd, status, link, wifi-forget, reboot, build, ui, --version
 
 ### E — installer window
-- [ ] Tkinter UI over the shared core (worker thread + queue)
+- [x] Tkinter UI over the shared core (worker thread + queue)
 
 ### F — tests and quality
-- [ ] pytest suite covering the listed areas, coverage ≥ 80 %
-- [ ] ruff clean, mypy on core
-- [ ] code review + python-reviewer + security-reviewer findings resolved/documented
+- [x] pytest suite covering the listed areas, coverage ≥ 80 %
+- [x] ruff clean, mypy on core
+- [x] code review + python-reviewer + security-reviewer findings resolved/documented
 
 ### G — hardware test + release
-- [ ] G1 end-to-end on the board (doctor, flash --local, status, link ble)
+- [x] G1 end-to-end on the board (doctor, flash --local, status, link ble)
 - [ ] G2 ask before repo creation / push / tag; verify release assets; fresh-venv pip install test
 - [ ] CHANGELOG, HANDOFF.md
+
+## Status notes
+
+- 257 pytest tests, 93.7 % coverage (Python 3.9 and 3.13), ruff + mypy (win32 and linux) clean.
+- Hardware test on COM9 done: doctor, flash --local, status, link ble/wifi, monitor, reboot, esptool v4 and v5.
+- Hardware test found that flashing the merged image wiped NVS; fixed (NVS is skipped unless --erase).
