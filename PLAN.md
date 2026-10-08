@@ -49,11 +49,12 @@ Source of truth: `MASTER_PROMPT_DeskBuddy-C3.md` (in `D:\ard\c3bud`). This file 
 
 ### G — hardware test + release
 - [x] G1 end-to-end on the board (doctor, flash --local, status, link ble)
-- [ ] G2 ask before repo creation / push / tag; verify release assets; fresh-venv pip install test
-- [ ] CHANGELOG, HANDOFF.md
+- [x] G2 ask before repo creation / push / tag; verify release assets; fresh-venv pip install test
+- [x] CHANGELOG, HANDOFF.md
 
 ## Status notes
 
 - 257 pytest tests, 93.7 % coverage (Python 3.9 and 3.13), ruff + mypy (win32 and linux) clean.
 - Hardware test on COM9 done: doctor, flash --local, status, link ble/wifi, monitor, reboot, esptool v4 and v5.
 - Hardware test found that flashing the merged image wiped NVS; fixed (NVS is skipped unless --erase).
+- Released v2.0.0: https://github.com/MONKEYDPARI019/DeskBuddy-c3/releases/tag/v2.0.0
