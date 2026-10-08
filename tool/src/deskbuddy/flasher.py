@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
@@ -17,6 +18,8 @@ BAUD_RATES = (921600, 460800, 115200)
 BOOT_RETRIES = 3
 BOOT_HINT = "Hold BOOT, tap RESET, release BOOT"
 MERGED_IMAGE_OFFSET = "0x0"
+NVS_START = 0x9000  # nvs partition (firmware/partitions.csv): 0x9000, size 0x5000
+NVS_END = 0xE000
 MIN_IMAGE_SIZE = 64 * 1024  # bootloader + partition table + app: always larger than this
 ESP_IMAGE_MAGIC = 0xE9
 
@@ -24,6 +27,7 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 _PROGRESS_RE = re.compile(r"Writing at 0x[0-9a-fA-F]+.*?(\d{1,3}(?:\.\d+)?)\s*%")
 
 Runner = Callable[..., EsptoolResult]
+Segments = list[tuple[str, Path]]
 Waiter = Callable[[str], Optional[str]]
 
 
@@ -94,7 +98,7 @@ def baud_ladder(requested: Optional[int]) -> tuple[int, ...]:
     return (requested,) if requested == 115200 else (requested, 115200)
 
 
-def write_flash_args(syntax: Syntax, port: str, baud: int, image: Union[str, Path], erase: bool) -> list[str]:
+def write_flash_args(syntax: Syntax, port: str, baud: int, image: Union[str, Path, Segments], erase: bool) -> list[str]:
     args = [
         "--chip",
         CHIP,
@@ -110,7 +114,30 @@ def write_flash_args(syntax: Syntax, port: str, baud: int, image: Union[str, Pat
     ]
     if erase:
         args.append("-e")
-    return [*args, MERGED_IMAGE_OFFSET, str(image)]
+    segments = image if isinstance(image, list) else [(MERGED_IMAGE_OFFSET, Path(image))]
+    for offset, path in segments:
+        args += [offset, str(path)]
+    return args
+
+
+def flash_segments(image: Path, erase: bool, workdir: Path) -> Segments:
+    """Split the merged image around the NVS partition so saved settings survive a flash.
+
+    The merged image is padded with 0xFF from the partition table up to boot_app0, which covers
+    NVS (0x9000-0xE000 in firmware/partitions.csv). Writing it whole would wipe WiFi credentials
+    and the link mode. Unless --erase was asked for, write [0x0, NVS) and [NVS end, ...) instead.
+    The split only happens if that region of the image really is empty (all 0xFF).
+    """
+    whole: Segments = [(MERGED_IMAGE_OFFSET, image)]
+    if erase or not image.is_file():
+        return whole
+    data = image.read_bytes()
+    if len(data) <= NVS_END or data[NVS_START:NVS_END].count(0xFF) != NVS_END - NVS_START:
+        return whole
+    head, tail = workdir / "part-0x0.bin", workdir / f"part-{NVS_END:#x}.bin"
+    head.write_bytes(data[:NVS_START])
+    tail.write_bytes(data[NVS_END:])
+    return [(MERGED_IMAGE_OFFSET, head), (hex(NVS_END), tail)]
 
 
 def check_image(image: Path) -> None:
@@ -138,7 +165,7 @@ def _last_lines(output: str, count: int = 6) -> str:
 
 
 def _attempt_all_bauds(
-    image: str, port: str, erase: bool, runner: Runner, syntax: Syntax, bauds: Sequence[int], cb: FlashCallbacks
+    image: Segments, port: str, erase: bool, runner: Runner, syntax: Syntax, bauds: Sequence[int], cb: FlashCallbacks
 ) -> Optional[int]:
     """Try each baud rate. Returns the baud that worked, or None if the chip is not in download mode."""
 
@@ -184,9 +211,27 @@ def flash_image(
     """Flash the merged image at 0x0. Falls back to slower bauds on communication errors; if the
     chip will not enter download mode, shows the BOOT hint, waits for re-enumeration and retries."""
     cb = callbacks or FlashCallbacks()
+    with tempfile.TemporaryDirectory(prefix="deskbuddy-") as tmp:
+        segments = flash_segments(Path(image), erase, Path(tmp))
+        if len(segments) > 1:
+            cb.status("Keeping saved settings (WiFi, link mode); use --erase to reset them.")
+        return _flash_with_retries(segments, port, runner, waiter, syntax, cb, erase, bauds, boot_retries)
+
+
+def _flash_with_retries(
+    segments: Segments,
+    port: str,
+    runner: Runner,
+    waiter: Waiter,
+    syntax: Syntax,
+    cb: FlashCallbacks,
+    erase: bool,
+    bauds: Sequence[int],
+    boot_retries: int,
+) -> FlashOutcome:
     current_port = port
     for attempt in range(boot_retries + 1):
-        baud = _attempt_all_bauds(str(image), current_port, erase, runner, syntax, bauds, cb)
+        baud = _attempt_all_bauds(segments, current_port, erase, runner, syntax, bauds, cb)
         if baud is not None:
             cb.progress(100.0)
             return FlashOutcome(port=current_port, baud=baud)

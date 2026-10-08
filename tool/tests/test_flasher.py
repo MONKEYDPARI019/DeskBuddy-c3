@@ -102,6 +102,8 @@ def test_run_esptool_launch_failure():
     [
         ("Writing at 0x00010000... (5 %)", 5.0),
         ("Writing at 0x0002c3a1... (100 %)", 100.0),
+        # captured from esptool 5.5.0 on real hardware (non-TTY output)
+        ("Writing at 0x0001c9ab >                                1.7% 16.00kB/936.29kB [0s] ", 1.7),
         ("Writing at 0x00010000 [====>                         ]  14.6% 65536/447776 bytes...", 14.6),
         ("\x1b[2KWriting at 0x00010000 [=>   ]   3.0% 1/2", 3.0),
         ("Writing at 0x00010000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100.0% 447776/447776 bytes...", 100.0),
@@ -326,3 +328,54 @@ def test_check_image_accepts_merged_image(tmp_path):
     image = tmp_path / "x.bin"
     image.write_bytes(b"\xe9" + b"\x00" * 70000)
     flasher.check_image(image)
+
+
+def make_merged(tmp_path, nvs_fill=0xFF, size=0x20000):
+    data = bytearray(b"\xe9" + b"\x11" * (size - 1))
+    data[flasher.NVS_START : flasher.NVS_END] = bytes([nvs_fill]) * (flasher.NVS_END - flasher.NVS_START)
+    path = tmp_path / "merged.bin"
+    path.write_bytes(bytes(data))
+    return path, bytes(data)
+
+
+def test_flash_segments_skip_empty_nvs(tmp_path):
+    image, data = make_merged(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    segments = flasher.flash_segments(image, erase=False, workdir=work)
+    assert [s[0] for s in segments] == ["0x0", "0xe000"]
+    assert segments[0][1].read_bytes() == data[: flasher.NVS_START]
+    assert segments[1][1].read_bytes() == data[flasher.NVS_END :]
+
+
+def test_flash_segments_whole_image_when_erasing_or_nvs_has_data(tmp_path):
+    image, _ = make_merged(tmp_path)
+    assert flasher.flash_segments(image, erase=True, workdir=tmp_path) == [("0x0", image)]
+    image2, _ = make_merged(tmp_path, nvs_fill=0x00)
+    assert flasher.flash_segments(image2, erase=False, workdir=tmp_path) == [("0x0", image2)]
+
+
+def test_write_flash_args_with_segments(tmp_path):
+    args = flasher.write_flash_args(V5, "COM9", 921600, [("0x0", tmp_path / "a"), ("0xe000", tmp_path / "b")], False)
+    assert args[-4:] == ["0x0", str(tmp_path / "a"), "0xe000", str(tmp_path / "b")]
+
+
+def test_flash_image_preserves_nvs_by_default(tmp_path):
+    image, _ = make_merged(tmp_path)
+    seen = []
+
+    def runner(args, on_line=None):
+        seen.append(args)
+        return EsptoolResult(0, "")
+
+    statuses = []
+    flasher.flash_image(
+        image,
+        "COM9",
+        runner=runner,
+        waiter=lambda p: p,
+        syntax=V5,
+        callbacks=flasher.FlashCallbacks(status=statuses.append),
+    )
+    assert "0xe000" in seen[0] and "-e" not in seen[0]
+    assert any("Keeping saved settings" in s for s in statuses)
