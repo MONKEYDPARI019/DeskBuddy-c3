@@ -57,6 +57,16 @@ class MonitorThread(threading.Thread):
         self.requests.put((kind, value))
 
     def run(self) -> None:
+        try:
+            self._loop()
+        except Exception as exc:  # report instead of dying silently
+            self.events.put(Event("monitor", f"monitor stopped: {exc}"))
+        finally:
+            self.paused.set()  # never leave an installer waiting for the port
+            self.mon.close()
+
+    def _loop(self) -> None:
+        last_error = ""
         while not self._halt.is_set():
             while not self.requests.empty():
                 kind, value = self.requests.get_nowait()
@@ -74,12 +84,14 @@ class MonitorThread(threading.Thread):
                     self.port = value
             try:
                 self.mon.step()
+                last_error = ""
             except DeskBuddyError as exc:
-                self.events.put(Event("monitor", exc.message))
+                if exc.message != last_error:  # say it once, then keep retrying quietly
+                    self.events.put(Event("monitor", exc.message))
+                    last_error = exc.message
                 self.mon.pause()
                 self._halt.wait(2.0)
                 self.mon.resume()
-        self.mon.close()
 
     def stop(self) -> None:
         self._halt.set()
@@ -303,7 +315,8 @@ class InstallerWindow:
 
     def _append(self, line: str, tag: Optional[str] = None) -> None:
         self.text.configure(state="normal")
-        self.text.insert("end", line + "\n", (tag or monitor.line_colour(line) or "",))
+        chosen = tag or monitor.line_colour(line)
+        self.text.insert("end", line + "\n", (chosen,) if chosen else ())
         if int(self.text.index("end-1c").split(".")[0]) > MAX_LINES:
             self.text.delete("1.0", "500.0")
         self.text.see("end")

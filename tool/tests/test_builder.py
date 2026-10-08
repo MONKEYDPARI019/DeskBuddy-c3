@@ -107,3 +107,46 @@ def test_stream_command_collects_lines(tmp_path):
 def test_stream_command_missing_program(tmp_path):
     with pytest.raises(BuildError, match="Could not run"):
         builder.stream_command([str(tmp_path / "nope.exe")], cwd=tmp_path, env=None)
+
+
+def test_stream_command_kills_child_when_callback_fails(tmp_path):
+    def explode(line):
+        raise RuntimeError("stop")
+
+    script = "import time\nprint('x', flush=True)\ntime.sleep(30)"
+    with pytest.raises(RuntimeError):
+        builder.stream_command([sys.executable, "-c", script], cwd=tmp_path, env=None, on_line=explode)
+
+
+def test_child_env_drops_tokens(monkeypatch, tmp_path):
+    monkeypatch.setenv("GITHUB_TOKEN", "secret")
+    monkeypatch.setenv("GH_TOKEN", "secret")
+    env = builder.child_env(tmp_path)
+    assert "GITHUB_TOKEN" not in env and "GH_TOKEN" not in env
+
+
+def test_reap_kills_stubborn_process():
+    import subprocess
+
+    calls = []
+
+    class Stubborn:
+        stdout = None
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout=None):
+            calls.append(("wait", timeout))
+            if timeout is not None:
+                raise subprocess.TimeoutExpired("x", timeout)
+            return -9
+
+        def kill(self):
+            calls.append("kill")
+
+    builder.reap(Stubborn())
+    assert calls == ["terminate", ("wait", 5), "kill", ("wait", None)]

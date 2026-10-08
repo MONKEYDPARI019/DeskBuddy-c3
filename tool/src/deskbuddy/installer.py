@@ -3,11 +3,14 @@ confirm the board booted, and switch the radio link."""
 
 from __future__ import annotations
 
+import contextlib
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+import serial
 
 from deskbuddy import envs, flasher, github, paths, ports, serial_io
 from deskbuddy.errors import DeskBuddyError, NoReplyError, UsageError
@@ -159,8 +162,11 @@ def confirm_boot(port: str, deps: Deps, status: Optional[Callable[[str], None]] 
             info = parse_boot_info(
                 serial_io.read_until_idle(ser, idle=1.5, timeout=BANNER_WAIT).decode("utf-8", "replace")
             )
+        except (serial.SerialException, OSError):
+            info = None  # the port vanished again while booting; fall back to 'status'
         finally:
-            ser.close()
+            with contextlib.suppress(serial.SerialException, OSError):
+                ser.close()
         if info:
             return info
     try:
@@ -205,7 +211,7 @@ def switch_link(
     if wanted is None:
         raise UsageError(f"Unknown link '{mode}'", "Use: deskbuddy link ble   or   deskbuddy link wifi")
     reply = d.run_command(port, f"link {wanted}", timeout=5.0)
-    if "already" in reply:
+    if "already" in reply.lower():
         return wanted
     if "switching" not in reply.lower():
         raise DeskBuddyError(

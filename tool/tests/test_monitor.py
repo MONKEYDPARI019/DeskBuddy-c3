@@ -187,3 +187,10 @@ def test_log_writer(tmp_path):
 def test_log_writer_disabled():
     with monitor.LogWriter(None) as writer:
         writer.write("ignored")
+
+
+def test_monitor_does_not_split_lines_on_short_gaps():
+    h = Harness([ScriptedSerial([b"hel", b"", b"", b"lo\n", b"tail", b"", b"", b"", b"", b""])])
+    for _ in range(11):
+        h.mon.step()
+    assert h.lines == ["hello", "tail"]

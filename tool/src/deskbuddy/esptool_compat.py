@@ -68,6 +68,8 @@ def esptool_command() -> list[str]:
 
 def _child_env() -> dict[str, str]:
     env = dict(os.environ)
+    for secret in ("GITHUB_TOKEN", "GH_TOKEN", "GH_ENTERPRISE_TOKEN"):
+        env.pop(secret, None)
     env.update({"NO_COLOR": "1", "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "TERM": "dumb"})
     return env
 
@@ -92,12 +94,17 @@ def run_esptool(
         )
     except OSError as exc:
         raise FlashError(f"Could not start esptool: {exc}", "Reinstall the deskbuddy tool and try again.") from exc
+    from deskbuddy.builder import reap
+
     lines: list[str] = []
     # text mode uses universal newlines, so '\r'-only progress updates also arrive as lines
-    for raw in proc.stdout:
-        line = raw.rstrip("\r\n")
-        lines.append(line)
-        if on_line:
-            on_line(line)
-    returncode = proc.wait()
+    try:
+        for raw in proc.stdout:
+            line = raw.rstrip("\r\n")
+            lines.append(line)
+            if on_line:
+                on_line(line)
+        returncode = proc.wait()
+    finally:
+        reap(proc)
     return EsptoolResult(returncode, "".join(f"{line}\n" for line in lines))

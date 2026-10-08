@@ -107,6 +107,18 @@ def _digest(value: Any) -> Optional[str]:
     return None
 
 
+class _HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only to https URLs (urllib would otherwise accept https -> http)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urlparse(newurl).scheme != "https":
+            raise urllib.error.URLError(f"refusing insecure redirect to {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_HTTPS_OPENER = urllib.request.build_opener(_HttpsOnlyRedirects)
+
+
 class _NotFound(Exception):
     pass
 
@@ -120,7 +132,7 @@ class GitHubClient:
         token: Optional[str] = None,
     ) -> None:
         self.repo = repo
-        self._urlopen = urlopen or urllib.request.urlopen
+        self._urlopen = urlopen or _HTTPS_OPENER.open
         self.timeout = timeout
         self._token = token if token is not None else os.environ.get("GITHUB_TOKEN")
 
@@ -162,6 +174,14 @@ class GitHubClient:
             return json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as exc:
             raise _unexpected("not JSON") from exc
+
+    def ping(self) -> None:
+        """Check that the GitHub API is reachable (/rate_limit does not count against the limit)."""
+        try:
+            with self._open(f"{API_ROOT}/rate_limit", api=True) as resp:
+                resp.read(MAX_TEXT_BYTES)
+        except _NotFound as exc:
+            raise _unexpected("API endpoint missing") from exc
 
     def list_releases(self) -> list[Release]:
         try:
@@ -237,7 +257,7 @@ class GitHubClient:
 
 
 def _safe_tag(tag: str) -> str:
-    if not _TAG_RE.match(tag):
+    if not _TAG_RE.fullmatch(tag):
         raise IntegrityError(f"Refusing unusual release tag {tag!r}", "Report this on GitHub.")
     return tag
 
@@ -276,6 +296,14 @@ def fetch_firmware(
     return client.download(asset.url, path, expected, progress)
 
 
+_RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
+
+
+def _bad_windows_name(part: str) -> bool:
+    """Names Windows cannot store safely: ':' (alternate data streams), trailing dot/space, devices."""
+    return ":" in part or part != part.rstrip(". ") or part.split(".")[0].lower() in _RESERVED
+
+
 def _member_parts(name: str) -> list[str]:
     normalised = name.replace("\\", "/")
     if normalised.startswith("/") or re.match(r"^[A-Za-z]:", normalised):
@@ -283,7 +311,7 @@ def _member_parts(name: str) -> list[str]:
             f"Archive contains an unsafe path: {name}", "The archive was rejected; nothing was extracted."
         )
     parts = [p for p in PurePosixPath(normalised).parts if p not in ("", ".")]
-    if ".." in parts:
+    if ".." in parts or any(_bad_windows_name(p) for p in parts):
         raise IntegrityError(
             f"Archive contains an unsafe path: {name}", "The archive was rejected; nothing was extracted."
         )

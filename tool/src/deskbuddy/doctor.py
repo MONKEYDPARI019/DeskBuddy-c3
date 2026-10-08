@@ -50,15 +50,12 @@ def current_user_groups() -> list[str]:
 def default_deps() -> DoctorDeps:
     from deskbuddy.github import GitHubClient
 
-    def ping() -> None:
-        GitHubClient(timeout=8).get_json("")
-
     return DoctorDeps(
         python_version=tuple(sys.version_info[:3]),
         package_version=_pkg_version,
         lister=None,
         opener=serial_io.open_serial,
-        github_ping=ping,
+        github_ping=GitHubClient(timeout=8).ping,
         platform=sys.platform,
         user_groups=current_user_groups,
     )

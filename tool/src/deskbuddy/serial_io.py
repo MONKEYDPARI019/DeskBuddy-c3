@@ -7,6 +7,7 @@ with LF. After a reset the port disappears and re-enumerates, so callers wait fo
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any, Callable, Optional
 
@@ -119,8 +120,13 @@ def run_command(
         ser.reset_input_buffer()
         send_line(ser, text)
         data = read_until_idle(ser, idle=idle, timeout=timeout, clock=clock, on_data=on_data)
+    except (serial.SerialException, OSError) as exc:
+        raise NoBoardError(
+            f"Lost the connection to {port}", "The board restarted or was unplugged; try again."
+        ) from exc
     finally:
-        ser.close()
+        with contextlib.suppress(serial.SerialException, OSError):
+            ser.close()
     reply = data.decode("utf-8", errors="replace")
     if not reply.strip():
         raise NoReplyError(
@@ -161,5 +167,7 @@ def wait_for_board(
         if seen_gone and present:
             return preferred if preferred in present else present[0]
         if clock() >= deadline:
-            return preferred if present and preferred in present else None
+            if not present:
+                return None
+            return preferred if preferred in present else present[0]
         sleep(POLL_INTERVAL)

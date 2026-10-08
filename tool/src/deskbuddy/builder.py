@@ -12,14 +12,25 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from deskbuddy.errors import BuildError, UsageError
 
 PIO_SPEC = "platformio>=6.1,<7"
 READY_MARKER = ".deskbuddy-ready"
 # idf_tools.py (used by pioarduino to install toolchains) refuses to run when it sees MSYS.
-_DROP_ENV = ("MSYSTEM", "MSYSTEM_CARCH", "MSYSTEM_CHOST", "MSYSTEM_PREFIX", "MINGW_PREFIX", "PLATFORMIO_CORE_DIR")
+_DROP_ENV = (
+    "MSYSTEM",
+    "MSYSTEM_CARCH",
+    "MSYSTEM_CHOST",
+    "MSYSTEM_PREFIX",
+    "MINGW_PREFIX",
+    "PLATFORMIO_CORE_DIR",
+    # never hand tokens to build scripts (PlatformIO runs the project's own Python code)
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+)
 
 LineCallback = Callable[[str], None]
 CommandRunner = Callable[..., int]
@@ -69,10 +80,26 @@ def stream_command(
     except OSError as exc:
         raise BuildError(f"Could not run {Path(cmd[0]).name}: {exc}", "Check your Python installation.") from exc
     assert proc.stdout is not None
-    for raw in proc.stdout:
-        if on_line:
-            on_line(raw.rstrip("\r\n"))
-    return proc.wait()
+    try:
+        for raw in proc.stdout:
+            if on_line:
+                on_line(raw.rstrip("\r\n"))
+        return proc.wait()
+    finally:
+        reap(proc)
+
+
+def reap(proc: Any) -> None:
+    """Make sure a child process is gone (e.g. after Ctrl+C or an exception in a callback)."""
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    if proc.stdout is not None:
+        proc.stdout.close()
 
 
 def _has_platformio_module() -> bool:

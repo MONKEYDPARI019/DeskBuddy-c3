@@ -21,6 +21,7 @@ from deskbuddy import serial_io
 from deskbuddy.errors import DeskBuddyError, PortBusyError
 
 RECONNECT_DELAY = 0.5
+FLUSH_AFTER_IDLE_READS = 5
 WAITING = "waiting for board..."
 DISCONNECTED = "board disconnected - waiting for board..."
 
@@ -96,6 +97,7 @@ class ReconnectingMonitor:
         self._buffer = LineBuffer()
         self._ever_connected = False
         self._announced_wait = False
+        self._idle_reads = 0
         self.state = State.WAITING
         self.port: Optional[str] = None
 
@@ -144,7 +146,14 @@ class ReconnectingMonitor:
         except (serial.SerialException, OSError):
             self._drop(DISCONNECTED)
             return
-        for line in self._buffer.feed(data) if data else self._buffer.flush():
+        if data:
+            self._idle_reads = 0
+            lines = self._buffer.feed(data)
+        else:
+            # flush a partial line only after ~0.5 s of silence, not on every 100 ms read gap
+            self._idle_reads += 1
+            lines = self._buffer.flush() if self._idle_reads == FLUSH_AFTER_IDLE_READS else []
+        for line in lines:
             self._on_line(line)
 
     def _drop(self, message: str) -> None:

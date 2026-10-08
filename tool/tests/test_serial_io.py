@@ -176,3 +176,16 @@ def test_wait_for_board_cancel(clock):
         is None
     )
     assert clock.now < 1
+
+
+def test_run_command_lost_connection_is_a_friendly_error(clock):
+    ser = ScriptedSerial([b"[App] switching", serial.SerialException("ClearCommError failed")], clock=clock)
+    with pytest.raises(NoBoardError, match="Lost the connection"):
+        serial_io.run_command("COM9", "link ble", opener=lambda port: ser, clock=clock)
+    assert not ser.is_open
+
+
+def test_wait_for_board_gone_first_without_preferred_returns_present_board(clock):
+    lister = _lister([("COM9", 0x303A)])
+    port = serial_io.wait_for_board(None, timeout=1, lister=lister, clock=clock, sleep=clock.sleep, gone_first=True)
+    assert port == "COM9"

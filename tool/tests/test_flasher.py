@@ -64,6 +64,9 @@ class FakePopen:
     def wait(self):
         return self.returncode
 
+    def poll(self):
+        return self.returncode
+
 
 def test_run_esptool_streams_lines():
     seen = []

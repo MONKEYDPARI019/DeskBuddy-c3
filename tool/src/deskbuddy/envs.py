@@ -36,5 +36,5 @@ def image_filename(pio_env: str, semver: str) -> str:
 
 def parse_image_filename(name: str) -> tuple[str, str] | None:
     """'deskbuddy-c3-c3-battery-v2.0.0.bin' -> ('c3-battery', '2.0.0')."""
-    match = _IMAGE_RE.match(name)
+    match = _IMAGE_RE.fullmatch(name)
     return (match.group("env"), match.group("version")) if match else None

@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -30,11 +32,6 @@ jobs:
               sys.exit(1)
           print(f"Tag {tag} matches FW_VERSION c3-{fw}")
           EOF
-      - name: Cache PlatformIO
-        uses: actions/cache@v6
-        with:
-          path: ~/.platformio
-          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
       - name: Install PlatformIO and esptool
         run: pip install "platformio>=6.1,<7" "esptool>=4.8,<6"
       - name: Build and merge both images

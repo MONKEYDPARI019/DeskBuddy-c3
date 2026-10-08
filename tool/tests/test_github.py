@@ -5,6 +5,7 @@ import io
 import json
 import stat
 import urllib.error
+import urllib.request
 import zipfile
 
 import pytest
@@ -333,3 +334,40 @@ def test_get_source(tmp_path):
     dest = github.get_source(rel, tmp_path / "dest", client)
     assert dest == tmp_path / "dest" / "DeskBuddy-C3-v2.0.0"
     assert (dest / "firmware" / "platformio.ini").read_text() == "[platformio]"
+
+
+def test_ping_ok_and_failures():
+    make_client({"https://api.github.com/rate_limit": b"{}"}).ping()
+    with pytest.raises(NetworkError, match="unexpected answer"):
+        make_client({}).ping()
+    with pytest.raises(NetworkError, match="Cannot reach GitHub"):
+        make_client({"https://api.github.com/rate_limit": urllib.error.URLError("dns")}).ping()
+
+
+def test_doctor_default_deps_use_ping():
+    from deskbuddy import doctor
+
+    deps = doctor.default_deps()
+    assert deps.github_ping.__name__ == "ping"
+
+
+def test_redirect_to_http_is_refused():
+    handler = github._HttpsOnlyRedirects()
+    req = urllib.request.Request("https://github.com/x")
+    with pytest.raises(urllib.error.URLError, match="insecure redirect"):
+        handler.redirect_request(req, None, 302, "Found", {}, "http://evil.example/x")
+    ok = handler.redirect_request(req, None, 302, "Found", {}, "https://objects.githubusercontent.com/x")
+    assert ok.full_url == "https://objects.githubusercontent.com/x"
+
+
+@pytest.mark.parametrize("evil", ["top/file.txt:stream", "top/CON", "top/nul.txt", "top/trailing. "])
+def test_safe_extract_rejects_windows_hostile_names(tmp_path, evil):
+    archive = make_zip(tmp_path / "w.zip", {evil: b"x"})
+    with pytest.raises(IntegrityError, match="unsafe path"):
+        github.safe_extract_zip(archive, tmp_path / "out")
+
+
+def test_asset_name_with_trailing_newline_is_not_an_image():
+    from deskbuddy import envs
+
+    assert envs.parse_image_filename("deskbuddy-c3-c3-v1.0.0.bin\n") is None
