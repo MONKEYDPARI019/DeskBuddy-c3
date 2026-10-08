@@ -98,11 +98,10 @@ def test_pio_core_dir_override(monkeypatch, tmp_path):
 def test_pio_core_dir_short_on_windows_without_long_paths(monkeypatch):
     monkeypatch.delenv("DESKBUDDY_PIO_CORE", raising=False)
     monkeypatch.setenv("SYSTEMDRIVE", "E:")
-    assert (
-        str(paths.platformio_core_dir(is_windows=True, long_paths=False))
-        .replace("/", "\\")
-        .startswith("E:\\.deskbuddy")
-    )
+    result = str(paths.platformio_core_dir(is_windows=True, long_paths=False))
+    assert result.startswith("E:")
+    assert result.replace("\\", "/").endswith(".deskbuddy/platformio")
+    assert len(result) < 30  # short enough for the pioarduino package paths
 
 
 def test_pio_core_dir_default(monkeypatch, isolated_home):

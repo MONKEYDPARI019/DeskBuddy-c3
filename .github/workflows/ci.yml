@@ -82,7 +82,14 @@ jobs:
       - name: Mypy (core)
         run: python -m mypy src/deskbuddy
       - name: Pytest
-        run: python -m pytest --cov=deskbuddy --cov-report=term-missing --cov-fail-under=80
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -rfE --cov=deskbuddy --cov-report=term-missing --cov-fail-under=80 2>&1 | tee pytest.log
+      - name: Show test failures as annotations
+        if: failure()
+        shell: bash
+        run: grep -E "^(FAILED|ERROR) |^E  " pytest.log | head -40 | sed 's/^/::error title=pytest::/' || true
 
   android:
     name: android app
