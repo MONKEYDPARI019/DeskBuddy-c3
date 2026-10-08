@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -30,14 +31,16 @@ def platformio_venv_dir() -> Path:
 
 
 def windows_long_paths_enabled() -> bool:
-    try:
-        import winreg
+    if sys.platform != "win32":
+        return False
+    import winreg
 
+    try:
         key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem")
         with key:
             value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
         return bool(value)
-    except (ImportError, OSError):
+    except OSError:
         return False
 
 

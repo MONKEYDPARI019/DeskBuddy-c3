@@ -134,6 +134,12 @@ def build_and_merge(
     return MergedImage(pio_env, out, sha256_file(out), out.stat().st_size, version)
 
 
+def _write_lf(path: Path, text: str) -> None:
+    """UTF-8 with LF line endings on every OS (Path.write_text has no newline= before Python 3.10)."""
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+
+
 def write_release_files(out_dir: Path, version: str, tool_min_version: str = __version__) -> tuple[Path, Path]:
     """Write SHA256SUMS and manifest.json for every deskbuddy-c3-*-v<version>.bin in out_dir."""
     found: list[tuple[str, Path]] = []
@@ -146,7 +152,7 @@ def write_release_files(out_dir: Path, version: str, tool_min_version: str = __v
     found.sort(key=lambda item: (item[0] != "c3", item[0]))
     hashes = {path.name: sha256_file(path) for _, path in found}
     sums = out_dir / SUMS_FILE
-    sums.write_text(format_sha256sums(hashes), encoding="utf-8", newline="\n")
+    _write_lf(sums, format_sha256sums(hashes))
     manifest = {
         "version": version,
         "tool_min_version": tool_min_version,
@@ -165,5 +171,5 @@ def write_release_files(out_dir: Path, version: str, tool_min_version: str = __v
         ],
     }
     manifest_path = out_dir / MANIFEST_FILE
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    _write_lf(manifest_path, json.dumps(manifest, indent=2) + "\n")
     return sums, manifest_path
