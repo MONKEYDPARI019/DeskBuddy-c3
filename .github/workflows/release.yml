@@ -1,0 +1,85 @@
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Check tag matches FW_VERSION
+        run: |
+          python - <<'EOF'
+          import os, sys
+          sys.path.insert(0, "tool/src")
+          from pathlib import Path
+          from deskbuddy.versions import read_fw_version
+          tag = os.environ["GITHUB_REF_NAME"]
+          fw = read_fw_version(Path("firmware/src/config.h"))
+          if tag != f"v{fw}":
+              print(f"::error::Tag {tag} does not match FW_VERSION c3-{fw} in firmware/src/config.h. "
+                    f"Bump FW_VERSION (or tag v{fw}) and try again.")
+              sys.exit(1)
+          print(f"Tag {tag} matches FW_VERSION c3-{fw}")
+          EOF
+      - name: Cache PlatformIO
+        uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Install PlatformIO and esptool
+        run: pip install "platformio>=6.1,<7" "esptool>=4.8,<6"
+      - name: Build and merge both images
+        run: python scripts/merge_firmware.py c3 c3-battery dist
+      - name: Build debug APK (only if a Gradle wrapper exists)
+        shell: bash
+        run: |
+          if [ -f app/gradlew ] && [ -f app/gradle/wrapper/gradle-wrapper.jar ]; then
+            (cd app && ./gradlew --no-daemon assembleDebug)
+            cp app/app/build/outputs/apk/debug/*.apk "dist/deskbuddy-app-${GITHUB_REF_NAME}-debug.apk"
+          else
+            echo "::notice title=No APK::app/ has no Gradle wrapper; the release contains firmware only."
+          fi
+      - name: Release notes from CHANGELOG.md
+        run: |
+          python - <<'EOF'
+          import os, re
+          version = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          match = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text, re.S | re.M)
+          notes = match.group(1).strip() if match else f"DeskBuddy C3 v{version}"
+          open("dist/RELEASE_NOTES.md", "w", encoding="utf-8").write(notes + "\n")
+          EOF
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: dist
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DeskBuddy C3 $GITHUB_REF_NAME" \
+            --notes-file dist/RELEASE_NOTES.md \
+            dist/*.bin dist/SHA256SUMS dist/manifest.json dist/*.apk

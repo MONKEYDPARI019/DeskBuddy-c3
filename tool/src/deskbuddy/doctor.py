@@ -37,11 +37,13 @@ class DoctorDeps:
 
 def current_user_groups() -> list[str]:
     """Group names of the current user (POSIX only; empty list elsewhere)."""
-    try:
-        import grp
+    if sys.platform == "win32":
+        return []
+    import grp
 
+    try:
         return [grp.getgrgid(gid).gr_name for gid in os.getgroups()]
-    except (ImportError, KeyError, OSError, AttributeError):
+    except (KeyError, OSError):
         return []
 
 

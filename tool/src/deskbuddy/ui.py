@@ -8,6 +8,7 @@ own queue, so the serial port is only ever touched by one thread at a time.
 
 from __future__ import annotations
 
+import functools
 import queue
 import threading
 import tkinter as tk
@@ -105,7 +106,7 @@ class InstallerWindow:
     # --- layout -------------------------------------------------------------------------
 
     def _build(self) -> None:
-        pad = {"padx": 6, "pady": 3}
+        pad: dict[str, Any] = {"padx": 6, "pady": 3}
         top = ttk.Frame(self.root, padding=8)
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
@@ -178,7 +179,7 @@ class InstallerWindow:
             ("WiFi", "link wifi"),
             ("Reboot", "reboot"),
         ):
-            ttk.Button(buttons, text=label, command=lambda c=command: self.send(c)).pack(side="left", padx=2)
+            ttk.Button(buttons, text=label, command=functools.partial(self.send, command)).pack(side="left", padx=2)
         ttk.Button(buttons, text="Clear", command=self.clear).pack(side="left", padx=2)
         ttk.Button(buttons, text="Save log", command=self.save_log).pack(side="left", padx=2)
 
