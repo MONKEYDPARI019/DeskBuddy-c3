@@ -1,0 +1,43 @@
+# PlatformIO
+.pio/
+firmware/test/host/test_logic
+firmware/test/host/test_logic.exe
+
+# Release / merge output
+dist/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+build/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Android
+.gradle/
+.idea/
+local.properties
+*.keystore
+*.jks
+*.iml
+captures/
+
+# Editors (keep recommended extensions only)
+.vscode/*
+!.vscode/extensions.json
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
