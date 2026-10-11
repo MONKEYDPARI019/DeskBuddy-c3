@@ -24,6 +24,10 @@ build/
 coverage.xml
 htmlcov/
 
+# npm
+node_modules/
+*.tgz
+
 # Android
 .gradle/
 .idea/

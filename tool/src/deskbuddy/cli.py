@@ -187,6 +187,25 @@ def cmd_flash(args: argparse.Namespace, con: Console) -> int:
     return run_monitor(result.port, con, log=None, raw=False, follow_any=args.port is None)
 
 
+def _confirm(question: str) -> bool:
+    """Ask a yes/no question in the terminal. Only an explicit 'y' or 'yes' counts as yes."""
+    if not (sys.stdin and sys.stdin.isatty()):
+        raise UsageError("This command needs a confirmation, but there is no terminal to ask in", "Add --yes.")
+    return input(f"{question} [y/N]: ").strip().lower() in ("y", "yes")
+
+
+def cmd_erase(args: argparse.Namespace, con: Console) -> int:
+    port = _port_for(args, con)
+    if not args.yes and not _confirm(f"Erase EVERYTHING on {port} (firmware, settings and saved WiFi)?"):
+        con.print("Cancelled. Nothing was erased.")
+        return EXIT_ERROR
+    used = installer.erase(port, callbacks=_flash_callbacks(con, args.verbose))
+    con.print(f"Erased the whole flash on {used} {con.ok}")
+    con.print("The board is empty now and waits in download mode, so the screen stays dark.")
+    con.print("Put DeskBuddy back with: deskbuddy flash   (or INSTALL in deskbuddy ui)")
+    return EXIT_OK
+
+
 def run_monitor(
     port: Optional[str],
     con: Console,
@@ -362,6 +381,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--erase", action="store_true", help="erase the whole flash first (resets saved settings)")
     p.add_argument("--baud", type=int, metavar="N", help="flash speed (default: 921600, falls back to slower)")
     p.add_argument("--no-monitor", action="store_true", help="exit after flashing instead of opening the monitor")
+
+    p = add("erase", cmd_erase, "erase the whole flash: firmware, settings and saved WiFi (asks first)")
+    _add_port(p)
+    p.add_argument("--yes", "-y", action="store_true", help="don't ask for confirmation")
 
     p = add("monitor", cmd_monitor, "interactive serial monitor (survives board resets)")
     _add_port(p)

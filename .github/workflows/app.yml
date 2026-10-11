@@ -1,0 +1,106 @@
+name: app
+
+# The ready-made `deskbuddy` program (PyInstaller) that the npm package downloads, plus the npm
+# launcher's own tests. Runs on changes to the tool, and is called by release.yml for every release.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "tool/**"
+      - "npm/**"
+      - "firmware/src/config.h"
+      - "scripts/build_app.py"
+      - ".github/workflows/app.yml"
+  pull_request:
+    paths:
+      - "tool/**"
+      - "npm/**"
+      - "firmware/src/config.h"
+      - "scripts/build_app.py"
+      - ".github/workflows/app.yml"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  launcher:
+    name: npm launcher (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ["18", "24"]
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+
+  program:
+    name: program (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: win32-x64, runner: windows-latest }
+          - { platform: linux-x64, runner: ubuntu-22.04 } # oldest glibc we support (2.35)
+          - { platform: linux-arm64, runner: ubuntu-22.04-arm }
+          - { platform: darwin-arm64, runner: macos-latest }
+          - { platform: darwin-x64, runner: macos-15-intel }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Tk for the installer window (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libtk8.6
+      - name: Install the tool and PyInstaller
+        run: python -m pip install ./tool "pyinstaller>=6.10,<7"
+      - name: Build, smoke-test and pack the program
+        run: python scripts/build_app.py dist
+      - name: The archive is named for this platform
+        shell: bash
+        run: ls -l dist/deskbuddy-*-${{ matrix.platform }}.tar.gz
+      - name: End to end through npm (local release server)
+        shell: bash
+        env:
+          DESKBUDDY_HOME: ${{ runner.temp }}/deskbuddy-home
+          DESKBUDDY_DOWNLOAD_BASE: http://127.0.0.1:8765
+        run: |
+          set -euo pipefail
+          python - <<'EOF'
+          import hashlib, pathlib
+          dist = pathlib.Path("dist")
+          lines = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in sorted(dist.glob("*.tar.gz"))]
+          (dist / "SHA256SUMS").write_text("".join(lines), encoding="utf-8")
+          EOF
+          (cd dist && python -m http.server 8765 --bind 127.0.0.1 > ../http.log 2>&1 &)
+          sleep 2
+          (cd npm && npm pack --pack-destination "$RUNNER_TEMP")
+          npm install -g "$RUNNER_TEMP"/deskbuddy-c3-*.tgz
+          deskbuddy --version
+          deskbuddy erase --help
+          test -d "$DESKBUDDY_HOME/app"
+          echo "installed program:" && ls "$DESKBUDDY_HOME/app"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: program-${{ matrix.platform }}
+          path: dist/deskbuddy-*.tar.gz
+          retention-days: 14

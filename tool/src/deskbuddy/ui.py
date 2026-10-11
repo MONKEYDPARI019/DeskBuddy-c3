@@ -15,7 +15,7 @@ import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from deskbuddy import __version__, flasher, github, installer, monitor, ports
 from deskbuddy.errors import DeskBuddyError
@@ -27,7 +27,7 @@ COLOURS = {"red": "#d32f2f", "blue": "#1565c0", "green": "#2e7d32", "yellow": "#
 
 @dataclass
 class Event:
-    kind: str  # line | status | progress | hint | monitor | done | error | releases | ports
+    kind: str  # line | status | progress | hint | monitor | done | erased | error | releases | ports
     value: Any = None
 
 
@@ -146,7 +146,9 @@ class InstallerWindow:
         ttk.Checkbutton(opts, text="Erase settings", variable=self.erase_var).pack(side="left", padx=16)
 
         self.install_btn = ttk.Button(top, text="INSTALL", command=self.install)
-        self.install_btn.grid(row=3, column=0, columnspan=3, sticky="ew", padx=6, pady=8, ipady=6)
+        self.install_btn.grid(row=3, column=0, columnspan=2, sticky="ew", padx=6, pady=8, ipady=6)
+        self.erase_btn = ttk.Button(top, text="Erase chip", command=self.erase_chip)
+        self.erase_btn.grid(row=3, column=2, sticky="ew", padx=6, pady=8, ipady=6)
         self.progress = ttk.Progressbar(top, maximum=100)
         self.progress.grid(row=4, column=0, columnspan=2, sticky="ew", **pad)
         self.status_var = tk.StringVar(value="Ready.")
@@ -266,24 +268,58 @@ class InstallerWindow:
             return
         if opts.erase and not messagebox.askyesno("DeskBuddy", "Erase all saved settings (WiFi, link mode, ...)?"):
             return
-        self.busy = True
-        self.install_btn.state(["disabled"])
-        self.hint_label.grid_forget()
+        self._set_busy(True)
         self.progress["value"] = 0
         self.monitor.request("pause")
         threading.Thread(target=self._install_worker, args=(opts,), daemon=True).start()
 
-    def _install_worker(self, opts: installer.InstallOptions) -> None:
-        self.monitor.paused.wait(5.0)  # the port must be free before esptool opens it
-        callbacks = flasher.FlashCallbacks(
+    def erase_chip(self) -> None:
+        if self.busy:
+            return
+        port = self._selected_port()
+        if port is None or port not in {p.device for p in ports.board_candidates(self.board_ports)}:
+            # never erase a serial device that doesn't look like an ESP32
+            messagebox.showerror("DeskBuddy", "No DeskBuddy board found.\n\nPlug it in, then press Refresh.")
+            return
+        question = (
+            f"Erase EVERYTHING on {port}?\n\n"
+            "This removes the firmware, the settings and the saved WiFi. "
+            "The screen stays dark until you press INSTALL again."
+        )
+        if not messagebox.askyesno("DeskBuddy", question, icon="warning"):
+            return
+        self._set_busy(True)
+        self.progress.configure(mode="indeterminate")
+        self.progress.start(15)
+        self.monitor.request("pause")
+        threading.Thread(target=self._erase_worker, args=(port,), daemon=True).start()
+
+    def _set_busy(self, busy: bool) -> None:
+        self.busy = busy
+        for button in (self.install_btn, self.erase_btn):
+            button.state(["disabled"] if busy else ["!disabled"])
+        self.hint_label.grid_forget()
+
+    def _callbacks(self) -> flasher.FlashCallbacks:
+        return flasher.FlashCallbacks(
             progress=lambda p: self.events.put(Event("progress", p)),
             status=lambda s: self.events.put(Event("status", s)),
             boot_hint=lambda h: self.events.put(Event("hint", h)),
             output=lambda line: None,
         )
+
+    def _install_worker(self, opts: installer.InstallOptions) -> None:
+        self.monitor.paused.wait(5.0)  # the port must be free before esptool opens it
+        self._run_job("done", lambda: installer.install(opts, callbacks=self._callbacks()))
+
+    def _erase_worker(self, port: str) -> None:
+        self.monitor.paused.wait(5.0)  # the port must be free before esptool opens it
+        self._run_job("erased", lambda: installer.erase(port, callbacks=self._callbacks()))
+
+    def _run_job(self, kind: str, job: Callable[[], Any]) -> None:
+        """Run a flashing job on the worker thread and report its result through the event queue."""
         try:
-            result = installer.install(opts, callbacks=callbacks)
-            self.events.put(Event("done", result))
+            self.events.put(Event(kind, job()))
         except DeskBuddyError as exc:
             self.events.put(Event("error", exc))
         except Exception as exc:  # keep the window alive whatever happens
@@ -347,18 +383,23 @@ class InstallerWindow:
             self.hint_label.grid(row=5, column=0, columnspan=3, sticky="ew", padx=6, pady=4)
         elif ev.kind == "releases":
             self._show_releases(ev.value)
-        elif ev.kind in ("done", "error"):
+        elif ev.kind in ("done", "erased", "error"):
             self._finish(ev)
 
     def _finish(self, ev: Event) -> None:
-        self.busy = False
-        self.install_btn.state(["!disabled"])
-        self.hint_label.grid_forget()
+        self._set_busy(False)
+        self.progress.stop()
+        self.progress.configure(mode="determinate")
         if ev.kind == "done":
             result: installer.InstallResult = ev.value
             self.progress["value"] = 100
             self.status_var.set(result.message)
             self.monitor.request("resume", result.port)
+        elif ev.kind == "erased":
+            self.progress["value"] = 100
+            self.status_var.set("Chip erased (empty).")
+            self._append("[chip erased: no firmware, waiting in download mode. INSTALL puts DeskBuddy back]", "sent")
+            self.monitor.request("resume", ev.value)
         else:
             exc: DeskBuddyError = ev.value
             self.status_var.set(f"Failed: {exc.message}")

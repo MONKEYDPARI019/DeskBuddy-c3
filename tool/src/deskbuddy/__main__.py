@@ -1,5 +1,5 @@
 import sys
 
-from deskbuddy.cli import main
+from deskbuddy.frozen import entry
 
-sys.exit(main())
+sys.exit(entry())

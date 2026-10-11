@@ -3,6 +3,27 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.1.0] - 2026-10-11
+
+### Install with npm
+- New npm package **`deskbuddy-c3`**: `npm install -g deskbuddy-c3` gives the same `deskbuddy` command with no Python
+  needed. It downloads a ready-made program for the computer (Windows x64, Linux x64/arm64, macOS arm64/x64) from this
+  release, checks it against `SHA256SUMS` and keeps it in `~/.deskbuddy/app`.
+- Each release now also carries `deskbuddy-<version>-<platform>.tar.gz`, built with PyInstaller by the new `app.yml`
+  workflow, which also tests the npm package end to end on every OS.
+
+### `deskbuddy` tool 2.1.0
+- New command `deskbuddy erase`: erases the whole flash (firmware, settings, saved WiFi) after a confirmation
+  (`--yes` skips it, `--port` picks the board). The chip is left waiting in download mode, so its USB port stays
+  steady instead of dropping out over and over while it has no firmware.
+- Installer window: new **Erase chip** button next to INSTALL, with a confirmation dialog. It only erases detected
+  ESP32 boards.
+- Runs as a ready-made program too: esptool runs inside it (`--run-esptool`), `doctor` reports the built-in Python,
+  and `build` / `flash --local` point to the pip version.
+
+### Firmware (c3-2.1.0)
+- No functional changes; the version follows the project version.
+
 ## [2.0.0] - 2026-10-08
 
 First release from this repository.

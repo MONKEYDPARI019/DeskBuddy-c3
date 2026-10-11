@@ -17,20 +17,27 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Check tag matches FW_VERSION
+      - name: Check tag matches FW_VERSION, the tool and the npm package
         run: |
           python - <<'EOF'
-          import os, sys
+          import json, os, sys
           sys.path.insert(0, "tool/src")
           from pathlib import Path
+          from deskbuddy import __version__ as tool
           from deskbuddy.versions import read_fw_version
           tag = os.environ["GITHUB_REF_NAME"]
           fw = read_fw_version(Path("firmware/src/config.h"))
-          if tag != f"v{fw}":
-              print(f"::error::Tag {tag} does not match FW_VERSION c3-{fw} in firmware/src/config.h. "
-                    f"Bump FW_VERSION (or tag v{fw}) and try again.")
+          npm = json.loads(Path("npm/package.json").read_text(encoding="utf-8"))["version"]
+          found = {
+              "FW_VERSION in firmware/src/config.h": fw,
+              "__version__ in tool/src/deskbuddy/__init__.py": tool,
+              "version in npm/package.json": npm,
+          }
+          wrong = [f"{where} is {value}" for where, value in found.items() if f"v{value}" != tag]
+          if wrong:
+              print(f"::error::Tag {tag} does not match: " + "; ".join(wrong) + ". Bump them all and tag again.")
               sys.exit(1)
-          print(f"Tag {tag} matches FW_VERSION c3-{fw}")
+          print(f"Tag {tag} matches the firmware, the tool and the npm package")
           EOF
       - name: Install PlatformIO and esptool
         run: pip install "platformio>=6.1,<7" "esptool>=4.8,<6"
@@ -60,8 +67,12 @@ jobs:
           name: release
           path: dist/
 
+  program:
+    # the ready-made deskbuddy program for each OS (what the npm package downloads)
+    uses: ./.github/workflows/app.yml
+
   publish:
-    needs: build
+    needs: [build, program]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -70,6 +81,17 @@ jobs:
         with:
           name: release
           path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: program-*
+          merge-multiple: true
+          path: dist
+      - name: Checksums for every file
+        run: |
+          shopt -s nullglob
+          cd dist
+          sha256sum *.bin *.tar.gz *.apk > SHA256SUMS
+          cat SHA256SUMS
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,4 +101,31 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "DeskBuddy C3 $GITHUB_REF_NAME" \
             --notes-file dist/RELEASE_NOTES.md \
-            dist/*.bin dist/SHA256SUMS dist/manifest.json dist/*.apk
+            dist/*.bin dist/*.tar.gz dist/SHA256SUMS dist/manifest.json dist/*.apk
+
+  npm:
+    # Publishes npm/ as deskbuddy-c3 with npm trusted publishing (no token stored anywhere).
+    # Off until the repository variable NPM_PUBLISH is "true"; see docs/development.md.
+    needs: publish
+    if: vars.NPM_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - name: npm new enough for trusted publishing
+        run: npm install -g npm@latest
+      - name: Repository URL exactly as GitHub spells it (npm checks it)
+        run: npm pkg set repository.url="git+https://github.com/${GITHUB_REPOSITORY}.git"
+      - run: npm test
+      - run: npm publish --access public

@@ -105,3 +105,8 @@ def test_format_results_marks_and_hints():
 
 def test_current_user_groups_does_not_crash():
     assert isinstance(doctor.current_user_groups(), list)
+
+
+def test_program_reports_its_built_in_python():
+    result = by_name(doctor.run_checks(deps(python_version=(3, 12, 10), built_in_python=True)))["Python"]
+    assert result.ok and result.detail == "3.12.10 (built into the program)"

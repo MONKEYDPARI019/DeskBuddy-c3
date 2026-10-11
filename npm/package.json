@@ -1,0 +1,46 @@
+{
+  "name": "deskbuddy-c3",
+  "version": "2.1.0",
+  "description": "Install, erase and monitor DeskBuddy C3 (ESP32-C3) firmware from the command line. No Python needed.",
+  "keywords": [
+    "deskbuddy",
+    "esp32",
+    "esp32-c3",
+    "esptool",
+    "flasher",
+    "serial-monitor",
+    "firmware"
+  ],
+  "homepage": "https://github.com/MONKEYDPARI019/DeskBuddy-C3#readme",
+  "bugs": {
+    "url": "https://github.com/MONKEYDPARI019/DeskBuddy-C3/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MONKEYDPARI019/DeskBuddy-C3.git",
+    "directory": "npm"
+  },
+  "license": "MIT",
+  "author": "Parinith (MONKEYDPARI019)",
+  "bin": {
+    "deskbuddy": "bin/deskbuddy.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "postinstall": "node lib/postinstall.js",
+    "test": "node --test test/launcher.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "win32",
+    "linux",
+    "darwin"
+  ]
+}

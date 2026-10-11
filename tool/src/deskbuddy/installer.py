@@ -13,7 +13,7 @@ from typing import Any, Callable, Optional
 import serial
 
 from deskbuddy import envs, flasher, github, paths, ports, serial_io
-from deskbuddy.errors import DeskBuddyError, NoReplyError, UsageError
+from deskbuddy.errors import BuildError, DeskBuddyError, NoReplyError, UsageError
 from deskbuddy.esptool_compat import Syntax, current_syntax, run_esptool
 
 _BOOT_RE = re.compile(r"DeskBuddy C3 (\S+) \((USB|battery) build\)")
@@ -110,6 +110,15 @@ def build_local(
 ) -> Any:
     """Build the firmware at `path` with the isolated PlatformIO and return the merged image."""
     from deskbuddy import builder, firmware
+    from deskbuddy.frozen import is_frozen
+
+    if is_frozen():  # PlatformIO needs a real Python to install itself into
+        raise BuildError(
+            "Building from source needs the Python version of the tool",
+            'Install it with: pip install "deskbuddy-cli[build] @ '
+            'git+https://github.com/MONKEYDPARI019/DeskBuddy-C3#subdirectory=tool"\n'
+            "Installing release firmware (deskbuddy flash) works in this version too.",
+        )
 
     project = builder.find_project(path)
     pio_cmd = builder.platformio_command(paths.platformio_venv_dir(), status=status)
@@ -200,6 +209,20 @@ def install(
     )
     boot = confirm_boot(outcome.port, d, cb.status)
     return InstallResult(outcome.port, outcome.baud, resolved, boot)
+
+
+def erase(port: str, deps: Optional[Deps] = None, callbacks: Optional[flasher.FlashCallbacks] = None) -> str:
+    """Erase everything on the board at `port` (firmware, settings, WiFi). Returns the port used.
+
+    The chip is left waiting in download mode, so the next install can start straight away."""
+    d = deps or Deps()
+    return flasher.erase_chip(
+        port,
+        runner=d.run_esptool,
+        waiter=lambda p: d.wait_for_board(p, timeout=60.0, gone_first=True),
+        syntax=d.syntax or _default_syntax(),
+        callbacks=callbacks,
+    )
 
 
 def switch_link(

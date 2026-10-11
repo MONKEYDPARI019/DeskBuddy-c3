@@ -379,3 +379,83 @@ def test_flash_image_preserves_nvs_by_default(tmp_path):
     )
     assert "0xe000" in seen[0] and "-e" not in seen[0]
     assert any("Keeping saved settings" in s for s in statuses)
+
+
+# --- erase -----------------------------------------------------------------------
+
+
+def test_erase_args_v5_and_v4():
+    assert flasher.erase_args(V5, "COM9") == [
+        "--chip",
+        "esp32c3",
+        "--port",
+        "COM9",
+        "--baud",
+        "115200",
+        "--before",
+        "default-reset",
+        "--after",
+        "no-reset",
+        "erase-flash",
+    ]
+    assert flasher.erase_args(V4, "/dev/ttyACM0")[-5:] == [
+        "--before",
+        "default_reset",
+        "--after",
+        "no_reset",
+        "erase_flash",
+    ]
+
+
+ERASED = (0, "Erasing flash (this may take a while)...\nFlash memory erased successfully in 1.8 seconds.")
+
+
+def run_erase(runner, waiter=lambda port: port, **kwargs):
+    callbacks = Recorder()
+    port = flasher.erase_chip("COM9", runner=runner, waiter=waiter, syntax=V5, callbacks=callbacks, **kwargs)
+    return port, callbacks.events
+
+
+def test_erase_succeeds_first_try():
+    runner = ScriptedRunner(ERASED)
+    port, events = run_erase(runner)
+    assert port == "COM9"
+    assert runner.calls == [("COM9", 115200)]
+    assert ("status", "Erasing the whole flash on COM9...") in events
+    assert not [e for e in events if e[0] == "hint"]
+
+
+def test_erase_boot_hint_then_success_on_new_port():
+    runner = ScriptedRunner(NO_DL, ERASED)
+    port, events = run_erase(runner, waiter=lambda p: "COM12")
+    assert ("hint", flasher.BOOT_HINT) in events
+    assert runner.calls == [("COM9", 115200), ("COM12", 115200)]
+    assert port == "COM12"
+
+
+def test_erase_retries_on_communication_errors():
+    runner = ScriptedRunner(COMM, ERASED)
+    port, _ = run_erase(runner)
+    assert port == "COM9" and len(runner.calls) == 2
+
+
+def test_erase_gives_up_after_boot_retries():
+    runner = ScriptedRunner(NO_DL, NO_DL, NO_DL, NO_DL)
+    with pytest.raises(FlashError, match="download mode") as excinfo:
+        run_erase(runner)
+    assert len(runner.calls) == 4
+    assert "BOOT" in excinfo.value.hint
+
+
+def test_erase_port_busy_stops_immediately():
+    runner = ScriptedRunner(BUSY)
+    with pytest.raises(PortBusyError):
+        run_erase(runner)
+    assert len(runner.calls) == 1
+
+
+def test_erase_other_error_shows_esptool_detail():
+    runner = ScriptedRunner(WEIRD)
+    with pytest.raises(FlashError, match="could not erase") as excinfo:
+        run_erase(runner)
+    assert "something unexpected" in excinfo.value.hint

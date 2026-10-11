@@ -202,3 +202,15 @@ def test_switch_link_bad_mode():
 def test_pick_port_uses_lister():
     d = Deps(ports=[esp_port("COM4")])
     assert installer.pick_port(None, d.deps) == "COM4"
+
+
+def test_erase_runs_esptool_and_retries_after_boot_hint():
+    no_dl = (2, "A fatal error occurred: Failed to connect to ESP32-C3: No serial data received.")
+    d = Deps(esptool_results=[no_dl, (0, "Flash memory erased successfully in 1.8 seconds.\n")])
+    hints = []
+    port = installer.erase("COM9", deps=d.deps, callbacks=installer.flasher.FlashCallbacks(boot_hint=hints.append))
+    assert port == "COM9"
+    assert len(d.esptool_calls) == 2
+    assert d.esptool_calls[0][-3:] == ["--after", "no-reset", "erase-flash"]
+    assert d.waits == [("COM9", True)]
+    assert hints == [installer.flasher.BOOT_HINT]

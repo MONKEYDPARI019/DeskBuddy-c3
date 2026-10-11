@@ -15,6 +15,7 @@ from deskbuddy.errors import FlashError, port_busy
 from deskbuddy.esptool_compat import EsptoolResult, Syntax
 
 BAUD_RATES = (921600, 460800, 115200)
+ERASE_BAUD = 115200  # erasing sends almost no data, so the safest speed costs nothing
 BOOT_RETRIES = 3
 BOOT_HINT = "Hold BOOT, tap RESET, release BOOT"
 MERGED_IMAGE_OFFSET = "0x0"
@@ -118,6 +119,28 @@ def write_flash_args(syntax: Syntax, port: str, baud: int, image: Union[str, Pat
     for offset, path in segments:
         args += [offset, str(path)]
     return args
+
+
+def erase_args(syntax: Syntax, port: str, baud: int = ERASE_BAUD) -> list[str]:
+    """esptool arguments that erase the whole flash.
+
+    `--after no-reset` leaves the chip waiting in download mode. An empty ESP32-C3 that is reset
+    finds no program, restarts over and over, and its USB port keeps dropping out; waiting in
+    download mode keeps the port steady until the next install (or until RESET is pressed).
+    """
+    return [
+        "--chip",
+        CHIP,
+        "--port",
+        port,
+        "--baud",
+        str(baud),
+        "--before",
+        syntax.default_reset,
+        "--after",
+        syntax.no_reset,
+        syntax.erase_flash,
+    ]
 
 
 def flash_segments(image: Path, erase: bool, workdir: Path) -> Segments:
@@ -240,7 +263,43 @@ def _flash_with_retries(
         cb.boot_hint(BOOT_HINT)
         cb.status(f"Waiting for the board to reconnect (attempt {attempt + 2} of {boot_retries + 1})...")
         current_port = waiter(current_port) or current_port
-    raise FlashError(
+    raise _no_download_mode()
+
+
+def erase_chip(
+    port: str,
+    *,
+    runner: Runner,
+    waiter: Waiter,
+    syntax: Syntax,
+    callbacks: Optional[FlashCallbacks] = None,
+    boot_retries: int = BOOT_RETRIES,
+) -> str:
+    """Erase the whole flash: firmware, settings and saved WiFi. If the chip will not enter
+    download mode, shows the BOOT hint, waits for re-enumeration and retries. Returns the port
+    that worked (it can change when the board re-enumerates)."""
+    cb = callbacks or FlashCallbacks()
+    current_port = port
+    for attempt in range(boot_retries + 1):
+        cb.status(f"Erasing the whole flash on {current_port}...")
+        result = runner(erase_args(syntax, current_port), on_line=cb.output)
+        if result.returncode == 0:
+            return current_port
+        kind = classify_failure(result.output)
+        if kind is Failure.PORT_BUSY:
+            raise port_busy(current_port)
+        if kind is Failure.OTHER:
+            raise FlashError("esptool could not erase the chip", _last_lines(result.output))
+        if attempt == boot_retries:
+            break
+        cb.boot_hint(BOOT_HINT)
+        cb.status(f"Waiting for the board to reconnect (attempt {attempt + 2} of {boot_retries + 1})...")
+        current_port = waiter(current_port) or current_port
+    raise _no_download_mode()
+
+
+def _no_download_mode() -> FlashError:
+    return FlashError(
         "The board would not enter download mode",
         f"{BOOT_HINT}, then run the command again. Also try another USB cable.",
     )

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
@@ -29,6 +28,14 @@ class Syntax:
     merge_bin: str
     default_reset: str
     hard_reset: str
+
+    @property
+    def erase_flash(self) -> str:
+        return "erase-flash" if self.major >= 5 else "erase_flash"
+
+    @property
+    def no_reset(self) -> str:
+        return "no-reset" if self.major >= 5 else "no_reset"
 
 
 @dataclass(frozen=True)
@@ -63,7 +70,9 @@ def current_syntax() -> Syntax:
 
 
 def esptool_command() -> list[str]:
-    return [sys.executable, "-m", "esptool"]
+    from deskbuddy.frozen import esptool_command as command
+
+    return command()
 
 
 def _child_env() -> dict[str, str]:

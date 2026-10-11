@@ -15,6 +15,7 @@ COMMANDS = [
     "versions",
     "get",
     "flash",
+    "erase",
     "monitor",
     "cmd",
     "status",
@@ -308,3 +309,71 @@ def test_errors_raise_from_choose_port_are_reported(monkeypatch):
     monkeypatch.setattr(cli.ports, "choose_port", none)
     s = Streams()
     assert s.run("link", "wifi") == EXIT_NO_BOARD
+
+
+# --- erase -----------------------------------------------------------------------
+
+
+class Tty(io.StringIO):
+    def isatty(self):
+        return True
+
+
+def fake_erase(calls):
+    def erase(port, deps=None, callbacks=None):
+        calls.append(port)
+        callbacks.status(f"Erasing the whole flash on {port}...")
+        return port
+
+    return erase
+
+
+def test_erase_with_yes_skips_the_question(board, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.installer, "erase", fake_erase(calls))
+    monkeypatch.setattr(cli, "_confirm", lambda q: pytest.fail("must not ask with --yes"))
+    s = Streams()
+    assert s.run("erase", "--yes") == 0
+    assert calls == ["COM9"]
+    out = s.out.getvalue()
+    assert "Erased the whole flash on COM9" in out and "deskbuddy flash" in out
+    assert "Erasing the whole flash on COM9" in s.err.getvalue()
+
+
+def test_erase_asks_and_accepts_yes(board, monkeypatch):
+    calls, questions = [], []
+    monkeypatch.setattr(cli.installer, "erase", fake_erase(calls))
+    monkeypatch.setattr(cli.sys, "stdin", Tty())
+    monkeypatch.setattr("builtins.input", lambda q: questions.append(q) or " YES ")
+    s = Streams()
+    assert s.run("erase", "-p", "COM7") == 0
+    assert calls == ["COM7"]
+    assert "COM7" in questions[0] and "[y/N]" in questions[0]
+
+
+@pytest.mark.parametrize("answer", ["", "n", "no", "nope"])
+def test_erase_cancelled_erases_nothing(board, monkeypatch, answer):
+    calls = []
+    monkeypatch.setattr(cli.installer, "erase", fake_erase(calls))
+    monkeypatch.setattr(cli.sys, "stdin", Tty())
+    monkeypatch.setattr("builtins.input", lambda q: answer)
+    s = Streams()
+    assert s.run("erase") == 1
+    assert calls == []
+    assert "Cancelled" in s.out.getvalue()
+
+
+def test_erase_without_terminal_needs_yes(board, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.installer, "erase", fake_erase(calls))
+    monkeypatch.setattr(cli.sys, "stdin", io.StringIO())
+    s = Streams()
+    assert s.run("erase") == 2
+    assert calls == []
+    assert "--yes" in s.err.getvalue()
+
+
+def test_erase_no_board(monkeypatch):
+    monkeypatch.setattr(cli.ports, "comports", lambda: [])
+    s = Streams()
+    assert s.run("erase", "--yes") == EXIT_NO_BOARD

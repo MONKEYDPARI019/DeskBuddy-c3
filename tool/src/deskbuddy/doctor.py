@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional
 
 from deskbuddy import ports, serial_io
 from deskbuddy.errors import DeskBuddyError
+from deskbuddy.frozen import is_frozen
 
 MIN_PYTHON = (3, 9)
 _REINSTALL = 'pip install --upgrade "git+https://github.com/MONKEYDPARI019/DeskBuddy-C3#subdirectory=tool"'
@@ -33,6 +34,7 @@ class DoctorDeps:
     github_ping: Callable[[], None]
     platform: str
     user_groups: Callable[[], list[str]]
+    built_in_python: bool = False
 
 
 def current_user_groups() -> list[str]:
@@ -58,11 +60,14 @@ def default_deps() -> DoctorDeps:
         github_ping=GitHubClient(timeout=8).ping,
         platform=sys.platform,
         user_groups=current_user_groups,
+        built_in_python=is_frozen(),
     )
 
 
-def _check_python(version: tuple[int, ...]) -> CheckResult:
+def _check_python(version: tuple[int, ...], built_in: bool = False) -> CheckResult:
     text = ".".join(str(v) for v in version)
+    if built_in:  # the ready-made program (npm) carries its own Python
+        return CheckResult("Python", True, f"{text} (built into the program)")
     if tuple(version[:2]) >= MIN_PYTHON:
         return CheckResult("Python", True, text)
     return CheckResult("Python", False, f"{text} is too old", "Install Python 3.9 or newer from python.org.")
@@ -125,7 +130,7 @@ def _check_permissions(platform: str, groups: Callable[[], list[str]]) -> CheckR
 def run_checks(deps: DoctorDeps) -> list[CheckResult]:
     board_result, port = _check_board(ports.list_ports(deps.lister))
     return [
-        _check_python(deps.python_version),
+        _check_python(deps.python_version, deps.built_in_python),
         _check_package("esptool", deps.package_version),
         _check_package("pyserial", deps.package_version),
         board_result,
