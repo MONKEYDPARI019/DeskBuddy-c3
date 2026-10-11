@@ -10,7 +10,6 @@ const { spawnSync } = require('node:child_process');
 const { after, before, describe, test } = require('node:test');
 
 const launcher = require('../lib/launcher');
-const { postinstall } = require('../lib/postinstall');
 
 const KEY = launcher.platformKey() || 'linux-x64';
 const VERSION = '9.8.7';
@@ -109,6 +108,7 @@ describe('names', () => {
       'https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases/download/v2.1.0',
     );
     assert.equal(launcher.downloadBase({ DESKBUDDY_DOWNLOAD_BASE: 'http://x/y/' }, '2.1.0'), 'http://x/y');
+    assert.equal(launcher.downloadBase({ DESKBUDDY_DOWNLOAD_BASE: 'dist' }, '2.1.0'), path.resolve('dist'));
   });
 
   test('package, tool and firmware versions agree', (t) => {
@@ -181,10 +181,26 @@ describe('ensureInstalled', () => {
     await assert.rejects(launcher.ensureInstalled({ version: VERSION, key: KEY, env }), (err) => err.exitCode === 5);
   });
 
-  test('postinstall never fails the install', async () => {
-    assert.equal(await postinstall({ DESKBUDDY_SKIP_DOWNLOAD: '1' }), false);
-    const env = { DESKBUDDY_HOME: tmpdir(), DESKBUDDY_DOWNLOAD_BASE: 'http://127.0.0.1:9' };
-    assert.equal(await postinstall(env), false);
+  test('installs from a local release folder (offline)', async () => {
+    const env = { DESKBUDDY_HOME: tmpdir(), DESKBUDDY_DOWNLOAD_BASE: releases.good };
+    const before = requests.length;
+    const exe = await launcher.ensureInstalled({ version: VERSION, key: KEY, env });
+    assert.equal(fs.readFileSync(exe, 'utf8'), 'fake program\n');
+    assert.equal(requests.length, before); // no network at all
+  });
+
+  test('a local folder still checks the checksum', async () => {
+    const env = { DESKBUDDY_HOME: tmpdir(), DESKBUDDY_DOWNLOAD_BASE: releases.corrupt };
+    await assert.rejects(launcher.ensureInstalled({ version: VERSION, key: KEY, env }), (err) => err.exitCode === 6);
+  });
+
+  test('a local folder without SHA256SUMS says what is missing', async () => {
+    const env = { DESKBUDDY_HOME: tmpdir(), DESKBUDDY_DOWNLOAD_BASE: tmpdir() };
+    await assert.rejects(launcher.ensureInstalled({ version: VERSION, key: KEY, env }), (err) => {
+      assert.equal(err.exitCode, 5);
+      assert.match(err.message, /SHA256SUMS not found/);
+      return true;
+    });
   });
 });
 

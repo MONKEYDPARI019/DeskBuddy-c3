@@ -47,7 +47,7 @@ npm uninstall -g deskbuddy-c3   # then delete ~/.deskbuddy/app to free the space
 | Variable | Effect |
 |---|---|
 | `DESKBUDDY_HOME` | Keep the program and downloads somewhere other than `~/.deskbuddy` |
-| `DESKBUDDY_SKIP_DOWNLOAD` | Don't download during `npm install` (the first run still does) |
+| `DESKBUDDY_DOWNLOAD_BASE` | Take the release files from this URL or folder instead of GitHub (offline installs: a folder holding `SHA256SUMS` and the `.tar.gz` for your computer) |
 | `DESKBUDDY_BINARY` | Run this program instead of the downloaded one (for testing a local build) |
 
 ## License

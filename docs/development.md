@@ -21,7 +21,7 @@ DeskBuddy-C3/
 │  ├─ packaging/entry.py        entry point of the ready-made program (PyInstaller)
 │  └─ tests/                    pytest suite
 ├─ npm/                         deskbuddy-c3 npm package: launcher that downloads the ready-made program
-│  ├─ bin/deskbuddy.js, lib/launcher.js, lib/postinstall.js
+│  ├─ bin/deskbuddy.js, lib/launcher.js
 │  └─ test/launcher.test.js     node --test suite
 ├─ scripts/merge_firmware.py    release builds: merged image + SHA256SUMS + manifest.json
 ├─ scripts/build_app.py         builds + smoke-tests the ready-made program for this OS
@@ -133,7 +133,7 @@ The suite has 257 tests and about 94 % coverage. It uses fakes for serial ports,
 
 1. `scripts/build_app.py` runs PyInstaller (`--onedir`, with esptool's flasher stubs and pyserial's URL handlers included), checks that the program starts and that its built-in esptool runs, and packs it as `deskbuddy-<version>-<platform>.tar.gz` (`win32-x64`, `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`).
 2. Each release carries one archive per platform, listed in `SHA256SUMS`.
-3. The launcher (`npm/lib/launcher.js`) picks the archive for the computer it runs on, downloads it from the release whose version equals the npm package's version, checks the SHA-256, unpacks it with the system `tar` into `~/.deskbuddy/app/<version>-<platform>/` and runs it with the same arguments, passing stdin/stdout and the exit code straight through. `postinstall` does the download already during `npm install`, but never fails the install.
+3. The launcher (`npm/lib/launcher.js`) picks the archive for the computer it runs on, downloads it from the release whose version equals the npm package's version, checks the SHA-256, unpacks it with the system `tar` into `~/.deskbuddy/app/<version>-<platform>/` and runs it with the same arguments, passing stdin/stdout and the exit code straight through. There is deliberately no `postinstall` script: npm 11 and newer no longer run install scripts of global packages unless the user allows them, so the download happens on the first run instead. `DESKBUDDY_DOWNLOAD_BASE` can point at a local folder with the release files, which CI uses and which also allows offline installs.
 
 A frozen program has no `python -m esptool`, so the tool starts **itself** with a hidden flag, `deskbuddy --run-esptool <args>` (`frozen.py`). esptool still runs as a separate process, so progress parsing and error handling are identical in both versions. `deskbuddy build` and `flash --local` need a real Python for PlatformIO, so the program says to use the pip version for those.
 
@@ -160,7 +160,7 @@ On Windows the program is `build\app\dist\deskbuddy\deskbuddy.exe`; in PowerShel
 **`app.yml`** (pushes that touch `tool/`, `npm/` or `scripts/build_app.py`, and every release):
 - runs the npm launcher's tests on Windows, Linux and macOS with Node 18 and 24, including a check that `npm/package.json`, the tool's `__version__` and `FW_VERSION` agree;
 - builds the ready-made program on Windows x64, Linux x64 and arm64 (Ubuntu 22.04, so it runs on glibc 2.35+) and macOS arm64 and Intel;
-- installs each one end to end through `npm install -g` from a local copy of the release, and runs `deskbuddy --version`;
+- installs each one end to end through `npm install -g`, with the release files taken from the local `dist/` folder, and runs `deskbuddy --version`;
 - keeps the archives as downloadable workflow artifacts (`program-<platform>`) for 14 days, so you can try a build before releasing it.
 
 **`release.yml`** (on a `vX.Y.Z` tag):

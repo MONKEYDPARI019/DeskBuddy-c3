@@ -12,7 +12,7 @@ npm update -g deskbuddy-c3       # update to the newest version
 npm uninstall -g deskbuddy-c3    # remove (then delete ~/.deskbuddy/app to free the space)
 ```
 
-The npm package is a small launcher. On first use (or already during `npm install`), it downloads the ready-made `deskbuddy` program for your computer from the GitHub release of the same version, checks it against the release's `SHA256SUMS`, and keeps it in `~/.deskbuddy/app`. Ready-made programs exist for Windows x64 (and Windows on ARM), Linux x64 and arm64 (glibc 2.35+), and macOS (Apple silicon and Intel). Everything works the same as the Python version, except `deskbuddy build` and `flash --local`, which need Python.
+The npm package is a small launcher. On its first run, it downloads the ready-made `deskbuddy` program for your computer from the GitHub release of the same version, checks it against the release's `SHA256SUMS`, and keeps it in `~/.deskbuddy/app`. Ready-made programs exist for Windows x64 (and Windows on ARM), Linux x64 and arm64 (glibc 2.35+), and macOS (Apple silicon and Intel). Everything works the same as the Python version, except `deskbuddy build` and `flash --local`, which need Python.
 
 **With pip** (Python 3.9 or newer):
 
@@ -304,7 +304,7 @@ Opens the installer window. See [Installer window](installer-ui.md).
 | `DESKBUDDY_HOME` | Move `~/.deskbuddy` somewhere else |
 | `DESKBUDDY_PIO_CORE` | Move the 6 GB PlatformIO folder, e.g. to another drive. Keep the path short on Windows, e.g. `D:\.deskbuddy\platformio`. |
 | `GITHUB_TOKEN` | Optional personal access token. Raises GitHub's limit of 60 requests per hour. |
-| `DESKBUDDY_SKIP_DOWNLOAD` | npm only: don't download the program during `npm install` (the first run still does) |
+| `DESKBUDDY_DOWNLOAD_BASE` | npm only: take the release files from this URL or **folder** instead of the GitHub release. For an offline install, put the `deskbuddy-<version>-<platform>.tar.gz` and the `SHA256SUMS` from a release into a folder and point this at it. |
 | `DESKBUDDY_BINARY` | npm only: run this program instead of the downloaded one, e.g. a local build from `scripts/build_app.py` |
 
 PowerShell example: `$env:DESKBUDDY_PIO_CORE = "D:\.deskbuddy\platformio"`. Linux: `export DESKBUDDY_PIO_CORE=~/data/pio`.

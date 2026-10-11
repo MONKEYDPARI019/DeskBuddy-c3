@@ -78,11 +78,12 @@ jobs:
       - name: The archive is named for this platform
         shell: bash
         run: ls -l dist/deskbuddy-*-${{ matrix.platform }}.tar.gz
-      - name: End to end through npm (local release server)
+      - name: End to end through npm (release files from a local folder)
         shell: bash
         env:
           DESKBUDDY_HOME: ${{ runner.temp }}/deskbuddy-home
-          DESKBUDDY_DOWNLOAD_BASE: http://127.0.0.1:8765
+          # the launcher reads the release files from this folder instead of GitHub
+          DESKBUDDY_DOWNLOAD_BASE: ${{ github.workspace }}/dist
         run: |
           set -euo pipefail
           python - <<'EOF'
@@ -90,15 +91,18 @@ jobs:
           dist = pathlib.Path("dist")
           lines = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in sorted(dist.glob("*.tar.gz"))]
           (dist / "SHA256SUMS").write_text("".join(lines), encoding="utf-8")
+          print("".join(lines), end="")
           EOF
-          (cd dist && python -m http.server 8765 --bind 127.0.0.1 > ../http.log 2>&1 &)
-          sleep 2
-          (cd npm && npm pack --pack-destination "$RUNNER_TEMP")
-          npm install -g "$RUNNER_TEMP"/deskbuddy-c3-*.tgz
+          echo "node $(node --version), npm $(npm --version)"
+          mkdir -p packed
+          (cd npm && npm pack --pack-destination ../packed)
+          npm install -g ./packed/deskbuddy-c3-*.tgz
+          echo "deskbuddy command: $(command -v deskbuddy)"
+          echo "::group::first run (unpacks the program)"
           deskbuddy --version
+          echo "::endgroup::"
           deskbuddy erase --help
-          test -d "$DESKBUDDY_HOME/app"
-          echo "installed program:" && ls "$DESKBUDDY_HOME/app"
+          node -e "console.log('installed:', require('fs').readdirSync(require('path').join(process.env.DESKBUDDY_HOME, 'app')))"
       - uses: actions/upload-artifact@v7
         with:
           name: program-${{ matrix.platform }}

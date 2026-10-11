@@ -2,7 +2,7 @@
 // The `deskbuddy` command installed by `npm install -g deskbuddy-c3`.
 //
 // The real tool is a ready-made program (the Python tool packed with PyInstaller, see
-// scripts/build_app.py) attached to each GitHub Release. On first use this launcher downloads
+// scripts/build_app.py) attached to each GitHub Release. On its first run this launcher downloads
 // the one for this computer, checks it against the release's SHA256SUMS, unpacks it into
 // ~/.deskbuddy/app/<version>-<platform>/ and from then on just runs it with the same arguments.
 
@@ -67,9 +67,34 @@ function appDir(env, version, key) {
   return path.join(homeDir(env), 'app', `${version}-${key}`);
 }
 
+/** Where the release files come from: the GitHub release, another URL, or a local folder. */
 function downloadBase(env, version) {
   const base = env.DESKBUDDY_DOWNLOAD_BASE || `https://github.com/${REPO}/releases/download/v${version}`;
-  return base.replace(/\/+$/, '');
+  return isUrl(base) ? base.replace(/\/+$/, '') : path.resolve(base);
+}
+
+function isUrl(base) {
+  return /^https?:\/\//i.test(base);
+}
+
+/** A release file from a local folder (offline installs, CI): its text, or a copy and its sha256. */
+function localFile(folder, name) {
+  const file = path.join(folder, name);
+  if (!fs.existsSync(file)) {
+    throw new LauncherError(
+      `${file} not found`,
+      name === 'SHA256SUMS'
+        ? 'DESKBUDDY_DOWNLOAD_BASE must be a folder holding the release files and their SHA256SUMS.'
+        : `This release has no ready-made program for your computer.\n${PIP_HINT}`,
+      EXIT_NETWORK,
+    );
+  }
+  return file;
+}
+
+function copyLocal(source, file) {
+  fs.copyFileSync(source, file);
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
 async function get(url) {
@@ -183,8 +208,12 @@ async function ensureInstalled({ version = VERSION, key, env = process.env, log 
   const tmp = fs.mkdtempSync(path.join(root, '.download-'));
   try {
     const base = downloadBase(env, version);
+    const remote = isUrl(base);
     const name = assetName(version, key);
-    const sums = parseSums(await (await get(`${base}/SHA256SUMS`)).text());
+    const sumsText = remote
+      ? await (await get(`${base}/SHA256SUMS`)).text()
+      : fs.readFileSync(localFile(base, 'SHA256SUMS'), 'utf8');
+    const sums = parseSums(sumsText);
     const expected = sums.get(name);
     if (!expected) {
       throw new LauncherError(
@@ -193,9 +222,11 @@ async function ensureInstalled({ version = VERSION, key, env = process.env, log 
         EXIT_NETWORK,
       );
     }
-    log.info(`Downloading the DeskBuddy program for ${key} (first run of v${version} only)...`);
+    log.info(`Getting the DeskBuddy program for ${key} (first run of v${version} only)...`);
     const archive = path.join(tmp, name);
-    const actual = await downloadTo(`${base}/${name}`, archive, log);
+    const actual = remote
+      ? await downloadTo(`${base}/${name}`, archive, log)
+      : copyLocal(localFile(base, name), archive);
     if (actual !== expected) {
       throw new LauncherError(
         `${name} failed the checksum test (expected ${expected.slice(0, 12)}..., got ${actual.slice(0, 12)}...)`,

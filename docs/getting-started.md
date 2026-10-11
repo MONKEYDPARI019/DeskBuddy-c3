@@ -37,7 +37,7 @@ Any version from 18 up works.
 npm install -g deskbuddy-c3
 ```
 
-This also downloads the ready-made `deskbuddy` program for your computer (about 20 MB, once). Check it worked:
+The first `deskbuddy` command then downloads the ready-made program for your computer (about 20 MB, only once). Check it worked:
 
 ```bash
 deskbuddy --version

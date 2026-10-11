@@ -32,7 +32,6 @@
     "LICENSE"
   ],
   "scripts": {
-    "postinstall": "node lib/postinstall.js",
     "test": "node --test test/launcher.test.js"
   },
   "engines": {
