@@ -164,6 +164,29 @@ function extract(archive, dest) {
   }
 }
 
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Rename `from` to `to`. On Windows an antivirus or the search indexer often holds freshly
+ * unpacked files for a moment, so a rename fails with EPERM/EACCES/EBUSY: retry for a few
+ * seconds, then copy instead.
+ */
+function moveInto(from, to, { attempts = 8, rename = fs.renameSync } = {}) {
+  for (let i = 1; ; i++) {
+    try {
+      rename(from, to);
+      return;
+    } catch (err) {
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(err.code)) throw err;
+      if (i >= attempts) break;
+      sleep(100 * i);
+    }
+  }
+  fs.cpSync(from, to, { recursive: true });
+}
+
 function removeQuietly(target) {
   try {
     fs.rmSync(target, { recursive: true, force: true });
@@ -243,7 +266,7 @@ async function ensureInstalled({ version = VERSION, key, env = process.env, log 
     fs.writeFileSync(path.join(unpacked, '.complete'), `${name} ${expected}\n`);
     removeQuietly(target); // an earlier, interrupted unpack
     try {
-      fs.renameSync(unpacked, target);
+      moveInto(unpacked, target);
     } catch (err) {
       if (!fs.existsSync(path.join(target, '.complete'))) throw err; // else another run finished first
     }
@@ -319,6 +342,7 @@ module.exports = {
   exeName,
   homeDir,
   main,
+  moveInto,
   parseSums,
   platformKey,
   run,

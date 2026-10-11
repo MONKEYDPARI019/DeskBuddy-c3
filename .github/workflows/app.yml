@@ -93,6 +93,9 @@ jobs:
           (dist / "SHA256SUMS").write_text("".join(lines), encoding="utf-8")
           print("".join(lines), end="")
           EOF
+          # Remove the pip-installed tool (needed only for the build), so `deskbuddy` below is the
+          # npm launcher. On Windows, Python's Scripts folder comes before npm's on PATH.
+          python -m pip uninstall -y deskbuddy-cli
           echo "node $(node --version), npm $(npm --version)"
           mkdir -p packed
           (cd npm && npm pack --pack-destination ../packed)
@@ -102,7 +105,12 @@ jobs:
           deskbuddy --version
           echo "::endgroup::"
           deskbuddy erase --help
-          node -e "console.log('installed:', require('fs').readdirSync(require('path').join(process.env.DESKBUDDY_HOME, 'app')))"
+          node -e "
+            const fs = require('fs'), path = require('path');
+            const dir = path.join(process.env.DESKBUDDY_HOME, 'app');
+            if (!fs.existsSync(dir)) { console.error('::error::the npm launcher did not install the program in ' + dir); process.exit(1); }
+            console.log('installed:', fs.readdirSync(dir));
+          "
       - uses: actions/upload-artifact@v7
         with:
           name: program-${{ matrix.platform }}

@@ -204,6 +204,45 @@ describe('ensureInstalled', () => {
   });
 });
 
+describe('moveInto', () => {
+  test('retries a rename that Windows refuses for a moment', () => {
+    const dir = tmpdir();
+    fs.mkdirSync(path.join(dir, 'from'));
+    fs.writeFileSync(path.join(dir, 'from', 'x'), 'data');
+    let calls = 0;
+    const flaky = (a, b) => {
+      calls += 1;
+      if (calls < 3) throw Object.assign(new Error('locked'), { code: 'EPERM' });
+      fs.renameSync(a, b);
+    };
+    launcher.moveInto(path.join(dir, 'from'), path.join(dir, 'to'), { rename: flaky });
+    assert.equal(calls, 3);
+    assert.equal(fs.readFileSync(path.join(dir, 'to', 'x'), 'utf8'), 'data');
+  });
+
+  test('copies when the rename keeps failing', () => {
+    const dir = tmpdir();
+    fs.mkdirSync(path.join(dir, 'from', 'sub'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'from', 'sub', 'x'), 'data');
+    const never = () => {
+      throw Object.assign(new Error('locked'), { code: 'EBUSY' });
+    };
+    launcher.moveInto(path.join(dir, 'from'), path.join(dir, 'to'), { attempts: 2, rename: never });
+    assert.equal(fs.readFileSync(path.join(dir, 'to', 'sub', 'x'), 'utf8'), 'data');
+  });
+
+  test('other errors are not retried', () => {
+    const dir = tmpdir();
+    let calls = 0;
+    const missing = () => {
+      calls += 1;
+      throw Object.assign(new Error('gone'), { code: 'ENOENT' });
+    };
+    assert.throws(() => launcher.moveInto(path.join(dir, 'a'), path.join(dir, 'b'), { rename: missing }), /gone/);
+    assert.equal(calls, 1);
+  });
+});
+
 describe('run', () => {
   test('passes the arguments through and returns the exit code', async () => {
     const env = { ...process.env, DESKBUDDY_BINARY: process.execPath };
