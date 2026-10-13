@@ -113,7 +113,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Build debug APK
+      - name: Unit tests and debug APK
         if: steps.wrapper.outputs.present == 'true'
         working-directory: app
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - uses: actions/upload-artifact@v7
+        if: steps.wrapper.outputs.present == 'true'
+        with:
+          name: app-debug-apk
+          path: app/app/build/outputs/apk/debug/*.apk
+          retention-days: 14

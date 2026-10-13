@@ -14,3 +14,5 @@
 *.jar  binary
 *.ico  binary
 *.exe  binary
+gradlew text eol=lf
+*.bat  text eol=crlf
