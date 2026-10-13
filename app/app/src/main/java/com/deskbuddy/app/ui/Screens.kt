@@ -55,6 +55,7 @@ interface Actions {
     fun setBlocked(app: String, blocked: Boolean)
     fun setModel(model: String)          // "v2" (ESP32 desk) | "c3" (ESP32-C3 pocket)
     fun setLinkMode(mode: String)        // C3 only: "ble" | "wifi"
+    fun changeWifi()                     // C3 only: restart into the WiFi setup portal
 }
 
 @Composable
@@ -402,6 +403,11 @@ fun SetupScreen(actions: Actions) {
                 if (ble) "Works anywhere within ~10 m, best battery life."
                 else "Phone and DeskBuddy on the same WiFi. First time: join 'DeskBuddy_C3_Setup'.",
                 20.sp, c.sub
+            )
+            if (AppState.connected) PixelButton("CHANGE WIFI", Modifier.fillMaxWidth()) { actions.changeWifi() }
+            TermText(
+                "New WiFi? CHANGE WIFI (or hold BTN2 and tap RESET) opens 'DeskBuddy_C3_Setup': join it and pick the network.",
+                19.sp, c.sub
             )
             TermText("Stuck? Hold both buttons on DeskBuddy and tap RESET to switch Bluetooth/WiFi.", 19.sp, c.sub)
         }

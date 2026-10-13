@@ -121,6 +121,7 @@ object DeskBuddyClient {
     private fun onConnected() {
         send(JSONObject().put("type", "hello").put("name", android.os.Build.MODEL))
         if (isC3) sendTime()
+        flushPending()                      // notifications that came in while offline
     }
 
     /** DeskBuddy C3 has no internet in Bluetooth mode: the phone sets its clock. */
@@ -180,13 +181,69 @@ object DeskBuddyClient {
         if (transport == "ble") ble?.sendLine(obj.toString()) ?: false
         else ws?.send(obj.toString()) ?: false
 
-    fun notify(app: String, title: String, body: String): Boolean {
-        val ok = send(
-            JSONObject().put("type", "notify")
-                .put("app", app.take(15)).put("title", title.take(23)).put("body", body.take(63))
-        )
-        if (ok) AppState.logNotification(app, title, body)
+    private data class Notif(val app: String, val title: String, val body: String)
+
+    /** Notifications are prepared and sent here, never on the main thread. */
+    private val notifExecutor = Executors.newSingleThreadExecutor()
+    private val pending = PendingNotifs<Notif>()
+
+    /** Hindi, Cyrillic, ... -> Latin letters the OLED can draw (Android 10+; built lazily, it is slow). */
+    private val transliterator: ((String) -> String)? by lazy {
+        if (android.os.Build.VERSION.SDK_INT < 29) null
+        else try {
+            val t = android.icu.text.Transliterator.getInstance("Any-Latin; Latin-ASCII")
+            val f: (String) -> String = { s -> synchronized(t) { t.transliterate(s) } }
+            f
+        } catch (e: Exception) { null }
+    }
+
+    /**
+     * Forward one phone notification. Not connected (phone just woke up, WiFi changing):
+     * kept for up to 2 min and sent as soon as the link is back, and a reconnect is tried now.
+     */
+    fun notify(app: String, title: String, body: String) {
+        notifExecutor.execute {
+            val n = Notif(
+                NotifText.prepare(app, 15, transliterator),
+                NotifText.prepare(title, 31, transliterator),
+                NotifText.prepare(body, 127, transliterator),
+            )
+            if (!connected || !sendNotif(n)) {
+                pending.add(n, System.currentTimeMillis())
+                kick()
+            }
+        }
+    }
+
+    private fun sendNotif(n: Notif): Boolean {
+        val ok = send(JSONObject().put("type", "notify").put("app", n.app).put("title", n.title).put("body", n.body))
+        if (ok) AppState.logNotification(n.app, n.title, n.body)
         return ok
+    }
+
+    private fun flushPending() = notifExecutor.execute {
+        pending.drain(System.currentTimeMillis()).forEach { sendNotif(it) }
+    }
+
+    /** C3: restart into WiFi mode with the setup portal open, to join a different network. */
+    fun wifiSetup() = send(JSONObject().put("type", "wifi_setup"))
+
+    /**
+     * Reconnect now instead of waiting for the backoff timer: the screen came on, WiFi or
+     * Bluetooth came back. Does nothing while connected.
+     */
+    fun kick() {
+        if (connected) return
+        if (transport == "ble") { ble?.kick(); return }
+        synchronized(this) {
+            if (!wanted) return
+            handler.removeCallbacksAndMessages(null)
+            backoffMs = 1000L
+            val old = ws
+            ws = null                       // first: the old socket's failure callback must see it is stale
+            old?.cancel()
+            open()
+        }
     }
 
     fun face(name: String) = send(JSONObject().put("type", "face").put("name", name))

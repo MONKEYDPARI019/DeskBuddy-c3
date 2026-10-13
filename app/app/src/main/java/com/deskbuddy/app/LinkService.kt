@@ -5,8 +5,15 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.bluetooth.BluetoothAdapter
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -35,6 +42,52 @@ class LinkService : Service(), DeskBuddyClient.Listener {
     private val giveUp = Runnable { giveUpSearching() }
     private var giveUpPending = false
 
+    /**
+     * Reconnect at once when a reconnect is likely to work, instead of waiting for the backoff
+     * timer (up to 30 s): Bluetooth switched back on, the screen came on (phone woke up).
+     */
+    private val wakeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                BluetoothAdapter.ACTION_STATE_CHANGED ->
+                    if (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1) == BluetoothAdapter.STATE_ON) {
+                        DeskBuddyClient.kick()
+                    }
+                Intent.ACTION_SCREEN_ON -> DeskBuddyClient.kick()
+            }
+        }
+    }
+
+    /** A WiFi network became available (back in range, or the phone switched networks). */
+    private val wifiCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) { main.post { DeskBuddyClient.kick() } }
+    }
+    private var watching = false
+
+    private fun startWatching() {
+        if (watching) return
+        watching = true
+        val filter = IntentFilter().apply {
+            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(wakeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(wakeReceiver, filter)
+        try {
+            val request = NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build()
+            connectivity().registerNetworkCallback(request, wifiCallback)
+        } catch (e: Exception) { /* only a speed-up: reconnecting still works without it */ }
+    }
+
+    private fun stopWatching() {
+        if (!watching) return
+        watching = false
+        try { unregisterReceiver(wakeReceiver) } catch (_: Exception) {}
+        try { connectivity().unregisterNetworkCallback(wifiCallback) } catch (_: Exception) {}
+    }
+
+    private fun connectivity() = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -57,6 +110,7 @@ class LinkService : Service(), DeskBuddyClient.Listener {
             DeskBuddyClient.addListener(this)
         }
         connectFromPrefs(prefs)
+        startWatching()
         scheduleGiveUp()
         return START_STICKY
     }
@@ -72,6 +126,7 @@ class LinkService : Service(), DeskBuddyClient.Listener {
         stopping = true
         running = false
         cancelGiveUp()
+        stopWatching()
         main.removeCallbacksAndMessages(null)
         discovery?.stop()
         DeskBuddyClient.disconnect()
@@ -138,13 +193,18 @@ class LinkService : Service(), DeskBuddyClient.Listener {
                 }
             }
             // a C3 is restarting with the other radio: follow it after it reboots
-            "link_switch" -> {
-                val link = if (msg.optString("link") == "wifi") "wifi" else "ble"
-                prefs.linkMode = link
-                main.post { AppState.linkMode = link }
-                main.postDelayed({ if (Prefs(this).linkOn) connectFromPrefs(Prefs(this)) }, 4000)
-            }
+            "link_switch" -> followRestart(prefs, if (msg.optString("link") == "wifi") "wifi" else "ble")
+            // "Change WiFi": the C3 restarts in WiFi mode with its setup portal open. The app
+            // keeps looking for it on WiFi; it is found once it has joined the new network.
+            "wifi_setup" -> followRestart(prefs, "wifi")
         }
+    }
+
+    /** The C3 restarts with [link]: look for it that way once it is back up. */
+    private fun followRestart(prefs: Prefs, link: String) {
+        prefs.linkMode = link
+        main.post { AppState.linkMode = link }
+        main.postDelayed({ if (Prefs(this).linkOn) connectFromPrefs(Prefs(this)) }, 4000)
     }
 
     override fun onStatus(connected: Boolean, text: String) {
@@ -160,6 +220,7 @@ class LinkService : Service(), DeskBuddyClient.Listener {
         stopping = true
         running = false
         cancelGiveUp()
+        stopWatching()
         voice?.let { DeskBuddyClient.removeListener(it); it.shutdown() }
         DeskBuddyClient.removeListener(this)
         voice = null

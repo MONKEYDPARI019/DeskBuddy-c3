@@ -3,18 +3,33 @@ package com.deskbuddy.app
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import java.util.concurrent.Executors
 
 /**
  * Forwards phone notifications to DeskBuddy — replaces the v1 Automate/HTTP
  * setup. Enable it in Settings > Notification access (button in the app).
+ *
+ * Android calls this on the main thread, so everything (app name lookup,
+ * preferences, sending) happens on a background thread.
  */
 class NotifListener : NotificationListenerService() {
+    private val worker = Executors.newSingleThreadExecutor()
     private var lastKey = ""
     private var lastText = ""
     private var lastTime = 0L
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (!Prefs(this).forwardNotifications) return
+        worker.execute { handle(sbn) }
+    }
+
+    override fun onDestroy() {
+        worker.shutdown()
+        super.onDestroy()
+    }
+
+    private fun handle(sbn: StatusBarNotification) {
+        val prefs = Prefs(this)
+        if (!prefs.forwardNotifications) return
         if (sbn.packageName == packageName) return
         val n = sbn.notification
         if (sbn.isOngoing || n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
@@ -34,10 +49,10 @@ class NotifListener : NotificationListenerService() {
         } catch (e: Exception) {
             sbn.packageName.substringAfterLast('.')
         }
-        val prefs = Prefs(this)
         AppState.rememberApp(prefs, app)          // shows up in the Inbox filter list
         if (app in prefs.blockedApps) return     // user switched this app off
-        if (!DeskBuddyClient.connected) return
+        if (!prefs.linkOn) return                // the user tapped STOP: nothing to forward to
+        // not connected right now: DeskBuddyClient keeps it and sends it when the link is back
         DeskBuddyClient.notify(app, title, text)
     }
 }

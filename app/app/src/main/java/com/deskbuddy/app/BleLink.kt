@@ -60,7 +60,8 @@ class BleLink(
 
     private val writeQueue = ArrayDeque<ByteArray>()
     private var writing = false
-    private val incoming = StringBuilder()
+    private val incoming = ByteLineSplitter()
+    private var scansThisSearch = 0
 
     // ------------------------------------------------------------------ public
 
@@ -69,6 +70,21 @@ class BleLink(
         if (wanted) return
         wanted = true
         backoffMs = 2000L
+        scansThisSearch = 0
+        scan()
+    }
+
+    /**
+     * Something changed that makes a reconnect likely to work now (Bluetooth was switched on,
+     * the screen came on): stop waiting for the backoff timer and search again at once.
+     */
+    @Synchronized
+    fun kick() {
+        if (!wanted || ready || gatt != null) return
+        handler.removeCallbacksAndMessages(null)
+        stopScan()
+        backoffMs = 2000L
+        scansThisSearch = 0
         scan()
     }
 
@@ -112,7 +128,9 @@ class BleLink(
         val scanner = a.bluetoothLeScanner ?: run { retryLater(); return }
         onStatus(false, "searching for DeskBuddy C3 (Bluetooth)...")
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE)).build()
-        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+        // fast for the first few tries (it is usually right there), then gentler on the battery
+        val mode = if (scansThisSearch++ < 3) ScanSettings.SCAN_MODE_LOW_LATENCY else ScanSettings.SCAN_MODE_BALANCED
+        val settings = ScanSettings.Builder().setScanMode(mode).build()
         scanning = true
         scanner.startScan(listOf(filter), settings, scanCallback)
         handler.postDelayed({
@@ -162,7 +180,7 @@ class BleLink(
         ready = false
         rx = null
         synchronized(writeQueue) { writeQueue.clear(); writing = false }
-        incoming.setLength(0)
+        incoming.reset()
         gatt?.let { try { it.disconnect(); it.close() } catch (_: Exception) {} }
         gatt = null
     }
@@ -214,6 +232,7 @@ class BleLink(
             if (d.uuid == CCCD && status == BluetoothGatt.GATT_SUCCESS) {
                 ready = true
                 backoffMs = 2000L
+                scansThisSearch = 0
                 onStatus(true, "connected over Bluetooth (${g.device.address})")
             }
         }
@@ -238,21 +257,8 @@ class BleLink(
         }
     }
 
-    private fun received(bytes: ByteArray) {
-        val lines = mutableListOf<String>()
-        synchronized(incoming) {
-            incoming.append(String(bytes, Charsets.UTF_8))
-            var nl = incoming.indexOf("\n")
-            while (nl >= 0) {
-                val line = incoming.substring(0, nl).trim()
-                if (line.isNotEmpty()) lines.add(line)
-                incoming.delete(0, nl + 1)
-                nl = incoming.indexOf("\n")
-            }
-            if (incoming.length > 4096) incoming.setLength(0)   // garbage guard
-        }
-        lines.forEach(onLine)
-    }
+    // lines are cut as bytes, then decoded: a packet may end inside a UTF-8 character
+    private fun received(bytes: ByteArray) = incoming.feed(bytes).forEach(onLine)
 
     private fun pumpWrites(g: BluetoothGatt) {
         val c = rx ?: return

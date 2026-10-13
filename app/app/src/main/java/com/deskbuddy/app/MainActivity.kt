@@ -14,11 +14,17 @@ import com.deskbuddy.app.ui.Actions
 import com.deskbuddy.app.ui.DeskBuddyApp
 
 class MainActivity : ComponentActivity() {
-    companion object { private const val REQ_BLE = 2 }
+    companion object {
+        private const val REQ_BLE = 2
+        private const val SETUP_AP = "DeskBuddy_C3_Setup"
+    }
 
     private lateinit var prefs: Prefs
     private lateinit var tts: TtsPcm
     private lateinit var discovery: Discovery
+
+    /** What to do once the Bluetooth permission prompt is answered with "Allow". */
+    private var afterBlePermission: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,7 +57,7 @@ class MainActivity : ComponentActivity() {
             override fun link(host: String, port: Int) {
                 if (prefs.model == "c3") prefs.c3Host = host else prefs.host = host
                 prefs.port = port
-                if (prefs.useBle && !ensureBlePermissions()) return
+                if (prefs.useBle && !ensureBlePermissions { link(host, port) }) return
                 prefs.linkOn = true
                 LinkService.start(activity)         // connects (or reconnects to a new host/port)
             }
@@ -61,14 +67,14 @@ class MainActivity : ComponentActivity() {
                 prefs.model = model
                 AppState.model = model
                 if (prefs.linkOn) {
-                    if (prefs.useBle && !ensureBlePermissions()) return
+                    if (prefs.useBle && !ensureBlePermissions { LinkService.start(activity) }) return
                     LinkService.start(activity)     // reconnect the right way for this device
                 }
             }
 
             override fun setLinkMode(mode: String) {
                 if (mode == prefs.linkMode) return
-                if (mode == "ble" && !ensureBlePermissions()) return
+                if (mode == "ble" && !ensureBlePermissions { setLinkMode(mode) }) return
                 if (DeskBuddyClient.connected && AppState.isC3) {
                     // ask the C3 to switch radios; LinkService follows it after it restarts
                     DeskBuddyClient.set("link", mode, save = true)
@@ -80,6 +86,15 @@ class MainActivity : ComponentActivity() {
                     if (prefs.linkOn) LinkService.start(activity)
                     toast("App set to ${if (mode == "ble") "Bluetooth" else "WiFi"}. DeskBuddy must be in the same mode.")
                 }
+            }
+
+            override fun changeWifi() {
+                if (!DeskBuddyClient.connected || !AppState.isC3) {
+                    toast("Link DeskBuddy first, or hold BTN2 on DeskBuddy and tap RESET")
+                    return
+                }
+                DeskBuddyClient.wifiSetup()
+                toast("DeskBuddy restarts as WiFi '$SETUP_AP': join it on this phone and pick the new network")
             }
 
             override fun stop() {
@@ -135,8 +150,11 @@ class MainActivity : ComponentActivity() {
         return needed.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
     }
 
-    /** Bluetooth permissions: SCAN + CONNECT on Android 12+, location before that. */
-    private fun ensureBlePermissions(): Boolean {
+    /**
+     * Bluetooth permissions: SCAN + CONNECT on Android 12+, location before that.
+     * Missing: asks for them and runs [then] once they are granted.
+     */
+    private fun ensureBlePermissions(then: () -> Unit): Boolean {
         val needed = if (Build.VERSION.SDK_INT >= 31) {
             arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         } else {
@@ -144,9 +162,31 @@ class MainActivity : ComponentActivity() {
         }
         val missing = needed.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) return true
+        afterBlePermission = then
         requestPermissions(missing.toTypedArray(), REQ_BLE)
-        toast("Allow Bluetooth, then tap again")
         return false
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_BLE) return
+        val then = afterBlePermission
+        afterBlePermission = null
+        if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            then?.invoke()
+            return
+        }
+        // "Don't allow" twice: Android stops asking, so send the user to the app's settings page
+        val blocked = permissions.any { !shouldShowRequestPermissionRationale(it) }
+        if (blocked) {
+            toast("Allow 'Nearby devices' for DeskBuddy, then come back")
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null))
+            )
+        } else {
+            toast("DeskBuddy needs Bluetooth permission to find your DeskBuddy C3")
+        }
     }
 
     private fun toast(msg: String) = runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
