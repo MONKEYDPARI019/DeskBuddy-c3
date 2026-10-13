@@ -194,3 +194,17 @@ def test_monitor_does_not_split_lines_on_short_gaps():
     for _ in range(11):
         h.mon.step()
     assert h.lines == ["hello", "tail"]
+
+
+def test_collapse_repeats_groups_runs_of_the_same_line():
+    lines = ["ESP-ROM:esp32c3", *["invalid header: 0xffffffff"] * 3, "rst:0x10", "invalid header: 0xffffffff"]
+    assert monitor.collapse_repeats(lines) == [
+        ("ESP-ROM:esp32c3", 1),
+        ("invalid header: 0xffffffff", 3),
+        ("rst:0x10", 1),
+        ("invalid header: 0xffffffff", 1),
+    ]
+
+
+def test_collapse_repeats_empty():
+    assert monitor.collapse_repeats([]) == []

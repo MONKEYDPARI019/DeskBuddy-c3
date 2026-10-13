@@ -13,6 +13,7 @@ import functools
 import queue
 import sys
 import threading
+import time
 import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +24,10 @@ from deskbuddy import __version__, flasher, github, installer, monitor, ports
 from deskbuddy.errors import DeskBuddyError
 
 POLL_MS = 80
+POLL_BUDGET_S = 0.05  # at most 50 ms of each 80 ms tick goes to events, so the window never freezes
 MAX_LINES = 5000
+MAX_DRAWN_PER_POLL = 300  # newest line groups drawn per tick; anything older is counted, not drawn
+EMPTY_CHIP = "invalid header: 0xffffffff"  # what an erased ESP32-C3 prints, over and over
 COLOURS = {"red": "#d32f2f", "blue": "#1565c0", "green": "#2e7d32", "yellow": "#b28704"}
 
 
@@ -355,17 +359,55 @@ class InstallerWindow:
         self.text.configure(state="normal")
         chosen = tag or monitor.line_colour(line)
         self.text.insert("end", line + "\n", (chosen,) if chosen else ())
-        if int(self.text.index("end-1c").split(".")[0]) > MAX_LINES:
-            self.text.delete("1.0", "500.0")
+        self._trim_and_scroll()
+        self.text.configure(state="disabled")
+
+    def _trim_and_scroll(self) -> None:
+        total = int(self.text.index("end-1c").split(".")[0])
+        if total > MAX_LINES:
+            self.text.delete("1.0", f"{total - MAX_LINES + 500}.0")
         self.text.see("end")
+
+    def _show_lines(self, lines: list[str]) -> None:
+        """Draw a batch of monitor lines at once: repeats collapsed, a flood reduced to its newest part."""
+        if not lines:
+            return
+        groups = monitor.collapse_repeats(lines)
+        dropped = groups[:-MAX_DRAWN_PER_POLL]
+        groups = groups[-MAX_DRAWN_PER_POLL:]
+        if not self.busy and any(text == EMPTY_CHIP for text, _ in groups):
+            self.status_var.set("Board is empty: click INSTALL.")
+        self.text.configure(state="normal")
+        skipped = sum(count for _, count in dropped)
+        if skipped:
+            self.text.insert("end", f"[... {skipped} lines skipped: the board is printing very fast ...]\n", ("sent",))
+        for text, count in groups:
+            shown = f"{text}   [x{count}]" if count > 1 else text
+            chosen = monitor.line_colour(text)
+            self.text.insert("end", shown + "\n", (chosen,) if chosen else ())
+        self._trim_and_scroll()
         self.text.configure(state="disabled")
 
     def _poll(self) -> None:
+        """Drain the event queue for at most POLL_BUDGET_S, drawing monitor lines in one batch.
+
+        A board that prints thousands of lines a second (an erased chip) must never keep this loop
+        busy for good: the window would stop responding.
+        """
+        deadline = time.monotonic() + POLL_BUDGET_S
+        lines: list[str] = []
         try:
-            while True:
-                self._handle(self.events.get_nowait())
+            while time.monotonic() < deadline:
+                ev = self.events.get_nowait()
+                if ev.kind == "line":
+                    lines.append(ev.value)
+                    continue
+                self._show_lines(lines)  # keep the order of lines and status messages
+                lines = []
+                self._handle(ev)
         except queue.Empty:
             pass
+        self._show_lines(lines)
         self.root.after(POLL_MS, self._poll)
 
     def _handle(self, ev: Event) -> None:
@@ -399,9 +441,15 @@ class InstallerWindow:
             self.monitor.request("resume", result.port)
         elif ev.kind == "erased":
             self.progress["value"] = 100
-            self.status_var.set("Chip erased (empty).")
-            self._append("[chip erased: no firmware, waiting in download mode. INSTALL puts DeskBuddy back]", "sent")
-            self.monitor.request("resume", ev.value)
+            self.status_var.set("Chip erased (empty): click INSTALL.")
+            self.mon_state.set("● paused")
+            self.mon_label.configure(fg="grey")
+            # Like `deskbuddy erase`: leave the port alone until INSTALL. Re-opening it can reset the empty
+            # chip out of download mode into a restart loop (USB dropping out, a flood of output).
+            self._append(
+                "[chip erased: no firmware, waiting in download mode. Monitor paused; INSTALL puts DeskBuddy back]",
+                "sent",
+            )
         else:
             exc: DeskBuddyError = ev.value
             self.status_var.set(f"Failed: {exc.message}")

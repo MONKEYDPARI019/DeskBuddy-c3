@@ -43,6 +43,17 @@ def line_colour(line: str) -> Optional[str]:
     return None
 
 
+def collapse_repeats(lines: list[str]) -> list[tuple[str, int]]:
+    """Group runs of identical lines: an erased C3 prints 'invalid header: 0xffffffff' thousands of times."""
+    groups: list[tuple[str, int]] = []
+    for line in lines:
+        if groups and groups[-1][0] == line:
+            groups[-1] = (line, groups[-1][1] + 1)
+        else:
+            groups.append((line, 1))
+    return groups
+
+
 def colourise(line: str, enabled: bool) -> str:
     colour = line_colour(line) if enabled else None
     return f"{_ANSI[colour]}{line}{_RESET}" if colour else line
