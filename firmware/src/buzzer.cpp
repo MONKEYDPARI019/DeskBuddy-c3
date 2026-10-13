@@ -2,6 +2,17 @@
 #include "config.h"
 #include "settings.h"
 #include <Arduino.h>
+#include <driver/gpio.h>
+
+// Silence during flashing and restarts
+// -------------------------------------
+// While no sound plays, the pin is driven LOW and *held* (gpio_hold_en). The
+// hold lives in the always-on part of the chip, so it survives the resets that
+// flashing does: esptool restarts the C3 into its ROM bootloader, this code
+// stops running, and without the hold GPIO10 would be left undriven and the
+// buzzer could sound for the whole upload. The hold keeps it LOW (silent) until
+// the next firmware starts and buzzerBegin() takes the pin back. The hold is
+// released only while a sound plays (LEDC needs the pin then).
 
 namespace {
 
@@ -34,12 +45,38 @@ const Melody MELODIES[(int)Sound::Count] = {
 #undef M
 
 constexpr uint8_t RES_BITS = 10;
-bool attached = false;
+bool attached = false;           // LEDC drives the pin (only while a sound plays)
+bool attachFailed = false;       // report a broken LEDC once, not on every sound
 
 const Note* notes = nullptr;     // what is playing
 uint8_t count = 0, noteIdx = 0;
 uint32_t noteEnd = 0;
 Note single;                     // storage for buzzerTone
+
+// Silent: LEDC off, pin driven LOW and held there (also through resets).
+void park() {
+    if (attached) { ledcWrite(PIN_BUZZER, 0); ledcDetach(PIN_BUZZER); attached = false; }
+    pinMode(PIN_BUZZER, OUTPUT);
+    digitalWrite(PIN_BUZZER, LOW);
+    gpio_hold_en((gpio_num_t)PIN_BUZZER);
+}
+
+// Ready to play: release the hold and give the pin to LEDC.
+bool unpark() {
+    if (attached) return true;
+    pinMode(PIN_BUZZER, OUTPUT);             // known LOW level before the hold lets go
+    digitalWrite(PIN_BUZZER, LOW);
+    gpio_hold_dis((gpio_num_t)PIN_BUZZER);
+    attached = ledcAttach(PIN_BUZZER, 2000, RES_BITS);
+    if (!attached) {
+        if (!attachFailed) Serial.println("[Buzzer] LEDC attach failed");
+        attachFailed = true;
+        park();
+        return false;
+    }
+    ledcWrite(PIN_BUZZER, 0);
+    return true;
+}
 
 void out(uint16_t hz) {
     if (!attached) return;
@@ -55,23 +92,24 @@ void startNote() {
 }
 
 void play(const Note* n, uint8_t c) {
-    if (!attached || !n || !c) return;
+    if (!n || !c || !unpark()) return;
     notes = n; count = c; noteIdx = 0;
     startNote();
 }
 
 }  // namespace
 
+// First thing in setup(): after flashing or a restart the pin is still held LOW
+// from before; this keeps it LOW and silent. After power-on it drives it LOW at once.
 void buzzerBegin() {
-    attached = ledcAttach(PIN_BUZZER, 2000, RES_BITS);
-    if (attached) ledcWrite(PIN_BUZZER, 0);
-    else Serial.println("[Buzzer] LEDC attach failed");
+    notes = nullptr;
+    park();
 }
 
 void buzzerUpdate() {
     if (!notes) return;
     if ((int32_t)(millis() - noteEnd) < 0) return;
-    if (++noteIdx >= count) { notes = nullptr; out(0); return; }
+    if (++noteIdx >= count) { notes = nullptr; park(); return; }
     startNote();
 }
 
@@ -99,7 +137,5 @@ bool buzzerBusy() { return notes != nullptr; }
 
 void buzzerOff() {
     notes = nullptr;
-    if (attached) { ledcWrite(PIN_BUZZER, 0); ledcDetach(PIN_BUZZER); attached = false; }
-    pinMode(PIN_BUZZER, OUTPUT);
-    digitalWrite(PIN_BUZZER, LOW);
+    park();
 }

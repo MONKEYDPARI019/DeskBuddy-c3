@@ -24,6 +24,7 @@
 static void replyToApp(const char* json) { linkSend(json); }
 
 void setup() {
+    buzzerBegin();                             // first: keep the buzzer pin LOW (silent) from the very start
     powerWakeCheck();                          // battery build: woken by BTN1? must be held 3 s
     Serial.begin(115200);
     Serial.setTxTimeoutMs(0);                  // never block when no serial monitor is reading
@@ -34,7 +35,6 @@ void setup() {
     settingsLoad();
     ledsBegin();
     buttonsBegin();
-    buzzerBegin();
     batteryBegin();
 
     oledBegin();

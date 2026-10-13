@@ -1,6 +1,7 @@
 #pragma once
 // Passive buzzer: short melodies played in the background from the main loop
-// (no task, no delay). LEDC PWM on PIN_BUZZER.
+// (no task, no delay). LEDC PWM on PIN_BUZZER while a sound plays; between
+// sounds the pin is held LOW, which keeps the buzzer quiet while flashing too.
 
 #include <stdint.h>
 
@@ -16,4 +17,4 @@ bool        buzzerPlayName(const char* name, bool force = false);
 void        buzzerTone(uint16_t hz, uint16_t ms);   // single tone (CLI test)
 const char* buzzerName(Sound s);
 bool        buzzerBusy();
-void        buzzerOff();                            // stop and release the pin
+void        buzzerOff();                            // stop; pin held LOW (silent)
