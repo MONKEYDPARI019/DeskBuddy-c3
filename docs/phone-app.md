@@ -2,9 +2,11 @@
 
 The DeskBuddy Android app (in [`app/`](../app)) forwards your notifications, sets the clock, and lets you control Mochi, screens and settings. The same app drives DeskBuddy v2 (the desk version) and DeskBuddy C3; you choose the device type in Setup.
 
-## Build and install
+## Install
 
-The app isn't in the releases yet, so you build it yourself once with Android Studio.
+**Ready-made:** every release since v2.3.0 has `deskbuddy-app-vX.Y.Z-debug.apk`. Download it on the phone from the [latest release](https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases/latest), open it, and allow "Install unknown apps" for your browser when Android asks. If an older DeskBuddy app that you built yourself is installed, uninstall it first (the signatures differ).
+
+**Build it yourself** with Android Studio:
 
 1. Install [Android Studio](https://developer.android.com/studio).
 2. **File → Open**, and choose the `app` folder of this repo. Let Gradle sync finish; the first sync downloads a lot.
@@ -42,6 +44,7 @@ When you change **Link** while connected, the app tells DeskBuddy to switch radi
 While LINK is on, the app keeps a small **"DeskBuddy"** notification. That's what keeps the connection alive in the background, so notifications are forwarded even when the app is closed.
 
 - **Stop** on that notification (or **STOP** in Setup) disconnects and removes it. It stays off until you tap **LINK** again.
+- **Reconnecting** is quick: the app tries again as soon as the screen comes on, Bluetooth is switched back on or a WiFi network appears, instead of waiting for its retry timer. Notifications that arrive while it's reconnecting are kept for 2 minutes and sent once it's back.
 - **Searching stops by itself** after 10 minutes without finding DeskBuddy, to save battery. You then get a normal notification, "DeskBuddy not found", that you can swipe away. Tap **Search again** on it, or just open the app.
 - **Stay connected when app is closed** (Setup, on by default):
   - **Off:** swiping the app away from the recent apps list disconnects it, and opening the app reconnects. Notifications are then only forwarded while the app is open.
@@ -53,7 +56,7 @@ While LINK is on, the app keeps a small **"DeskBuddy"** notification. That's wha
 | **Home** | Live copy of Mochi, the screen buttons (CLOCK / MOCHI / INBOX), link and battery status, **ZZZ** (put Mochi to sleep) |
 | **Moods** | Tap one of the 15 moods to show it on DeskBuddy |
 | **Inbox** | Notifications sent so far, and which apps to forward (block noisy apps here) |
-| **Setup** | Device type, link, host/port, notification forwarding on/off, silent mode, volume, brightness, sleep time, power off (battery build), theme |
+| **Setup** | Device type, link, **CHANGE WIFI** (move DeskBuddy to another network), host/port, notification forwarding on/off, silent mode, volume, brightness, sleep time, power off (battery build), theme |
 
 The voice features of DeskBuddy v2 are hidden for the C3, which has no microphone or speaker.
 

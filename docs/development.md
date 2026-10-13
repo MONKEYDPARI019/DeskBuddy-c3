@@ -165,7 +165,7 @@ On Linux the same command writes `dist/DeskBuddy-linux-x64` (useful for testing 
 - builds both firmware envs;
 - runs the host tests;
 - runs ruff, mypy and pytest for the tool on Ubuntu and Windows, with Python 3.9 and 3.12;
-- checks the Android app. It's skipped while `app/` has no Gradle wrapper.
+- runs the Android app's unit tests and builds the debug APK (`./gradlew testDebugUnitTest assembleDebug` in `app/`, JDK 17), kept as the `app-debug-apk` artifact for 14 days.
 
 **`app.yml`** (pushes that touch `tool/`, `npm/` or `scripts/build_app.py`, and every release):
 - runs the npm launcher's tests on Windows, Linux and macOS with Node 18 and 24, including a check that `npm/package.json`, the tool's `__version__` and `FW_VERSION` agree;
@@ -223,10 +223,9 @@ The next tag then publishes to npm by itself, after the GitHub release. The job 
 
 ## Known limitations / ideas
 
-- `deskbuddy cmd` treats silent commands (`face`, `screen`, `press`) as "no reply". A firmware `ok` reply, or a list of silent commands, would fix that.
 - OTA flashing isn't in the tool yet; use `pio run -e ota -t upload`.
 - The Python tool isn't on PyPI yet; install it from GitHub (or use the npm package).
 - The ready-made programs aren't code-signed. Downloads through npm don't trigger Windows SmartScreen or macOS Gatekeeper (those only check files downloaded by a browser), but an antivirus may scan them on first run.
-- The Android app isn't built in CI. Add a Gradle wrapper (`gradle wrapper` in `app/`) to enable it.
+- The APK in the releases is a debug build (signed with the CI's debug key): Android asks to uninstall an app built on another PC before installing it.
 - Linux has only been tested in CI, not with a real board.
 - Hardening: protect `v*` tags, add a protected environment for the release job, and pin GitHub Actions to commit SHAs.

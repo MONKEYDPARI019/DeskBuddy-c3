@@ -46,10 +46,11 @@ Use one or the other. If both are installed, whichever comes first on your PATH 
 | [`erase`](#erase) | Wipe the board completely |
 | [`monitor`](#monitor) | Interactive serial monitor |
 | [`cmd`](#cmd) | Send one command, print the reply |
-| [`status`](#status-wifi-forget-reboot) | Show the board's status |
+| [`status`](#status-wifi-forget-wifi-setup-reboot) | Show the board's status |
 | [`link`](#link) | Switch Bluetooth ↔ WiFi |
-| [`wifi-forget`](#status-wifi-forget-reboot) | Erase the saved WiFi network |
-| [`reboot`](#status-wifi-forget-reboot) | Restart the board |
+| [`wifi-setup`](#status-wifi-forget-wifi-setup-reboot) | Change WiFi: open the setup portal (firmware 2.3.0+) |
+| [`wifi-forget`](#status-wifi-forget-wifi-setup-reboot) | Erase the saved WiFi network |
+| [`reboot`](#status-wifi-forget-wifi-setup-reboot) | Restart the board |
 | [`build`](#build) | Compile firmware from source |
 | [`ui`](#ui) | Open the installer window |
 
@@ -198,7 +199,7 @@ Live serial output at 115200 baud. Type a command and press Enter to send it; **
 deskbuddy cmd "<command>" [--timeout S] [--port P]
 ```
 
-Sends one serial command and prints the reply, until the board has been quiet for 0.8 s or `--timeout` (default 5 s) runs out.
+Sends one serial command and prints the reply. Right behind the command the tool sends `echo ~deskbuddy-end~`; the board runs lines one after the other, so when that marker comes back the reply is complete and `cmd` returns at once. `--timeout` (default 5 s) only matters for commands that keep running (`test buttons` takes 10 s) or restart the board. Firmware older than 2.3.0 answers the marker with `unknown command 'echo'`, which ends the reply just as well.
 
 ```
 > deskbuddy cmd i2c
@@ -206,14 +207,15 @@ Sends one serial command and prints the reply, until the board has been quiet fo
   1 device(s) on SDA=GPIO6 SCL=GPIO7
 ```
 
-Some commands (`face …`, `screen …`, `press …`) work but print nothing. `cmd` then reports "No reply" with exit code 8, even though it worked. See [Troubleshooting](troubleshooting.md#cmd-says-no-reply-but-it-worked).
+Some commands (`face …`, `screen …`, `sound …`) work but print nothing: `cmd` then prints nothing and exits with 0 (tool 2.3.0+; older versions wrongly reported "No reply", exit code 8). A reply that starts with `unknown command` exits with 1. Exit code 8 now means the board said nothing at all: no DeskBuddy firmware, or another program on the port.
 
-### `status`, `wifi-forget`, `reboot`
+### `status`, `wifi-forget`, `wifi-setup`, `reboot`
 
 | Command | Same as |
 |---|---|
 | `deskbuddy status` | `cmd status` |
 | `deskbuddy wifi-forget` | `cmd "wifi forget"` |
+| `deskbuddy wifi-setup` | `cmd "wifi setup"`: restarts in WiFi mode with the setup portal open, even when the saved network is in range (firmware 2.3.0+). See [Change WiFi](using-deskbuddy.md#change-wifi). |
 | `deskbuddy reboot` | sends `reboot`, waits, and confirms the boot banner |
 
 ```
@@ -276,14 +278,14 @@ Opens the installer window. See [Installer window](installer-ui.md).
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | General error, a `doctor` check failed, or `erase` was cancelled |
+| 1 | General error, a `doctor` check failed, `erase` was cancelled, or the board answered `unknown command` |
 | 2 | Usage error (bad option, several boards and no `--port`, unknown release) |
 | 3 | No board / port not found / connection lost |
 | 4 | Port busy |
 | 5 | Network or GitHub problem |
 | 6 | Integrity problem (checksum mismatch, unsafe archive) |
 | 7 | Flashing or erasing failed |
-| 8 | The board gave no reply |
+| 8 | The board gave no reply at all (no DeskBuddy firmware?) |
 | 9 | Build failed |
 | 130 | Interrupted (Ctrl+C) |
 

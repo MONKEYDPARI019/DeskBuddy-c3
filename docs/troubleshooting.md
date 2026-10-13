@@ -91,6 +91,8 @@ The firmware checks the OLED every 3 seconds and restarts it on its own when it 
 ### Mochi changes face by himself / the screen jumps back to Mochi / the radio switches at every reset
 DeskBuddy is seeing **button presses you didn't make**. Each BTN1 click changes the mood and jumps to Mochi. Both buttons "held" at start-up switch the radio.
 
+Firmware 2.3.0 and later ignore short spikes: a press must last 30 ms **and** be read the same at least 3 times in a row. A phantom press that still gets through is a wiring problem:
+
 1. In `deskbuddy monitor`, type `test buttons` and **don't touch anything** for 10 s. Any `BTN1 down` or `BTN2 down` means a wiring problem.
 2. Use **diagonally opposite legs** of each button (see [Hardware](hardware.md#buttons-use-diagonal-legs)), and check for loose jumpers, a bad breadboard hole, or solder touching a neighbouring pin.
 
@@ -188,7 +190,7 @@ If that fails too, delete `%USERPROFILE%\.platformio\penv`, open VS Code, let Pl
 ---
 
 ## `cmd` says "No reply" but it worked
-Commands like `face happy`, `screen clock` and `press 1` succeed silently, so `deskbuddy cmd` reports "No reply" (exit code 8) even though the board did it. Look at the screen, or use `deskbuddy monitor` for these commands.
+Tool versions before 2.3.0 reported "No reply" (exit code 8) for commands that succeed silently, like `face happy` or `screen clock`. Update the tool (`npm install -g deskbuddy-c3`, or the latest DeskBuddy.exe): silent commands now return at once with exit code 0. If 2.3.0 still says "No reply", the board printed nothing at all: check that DeskBuddy firmware is installed (`deskbuddy monitor`).
 
 ---
 

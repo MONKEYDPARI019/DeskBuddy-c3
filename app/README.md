@@ -34,7 +34,7 @@ The app also detects the type by itself: a C3 says `"model":"c3"` in its `hello`
 
 ## Build and run
 
-1. In Android Studio, choose **File → Open** and select this `android/` folder. It generates the Gradle wrapper and syncs.
+1. In Android Studio, choose **File → Open** and select this `app/` folder and let Gradle sync. From a terminal: `./gradlew assembleDebug` (Windows: `gradlew.bat assembleDebug`) with JDK 17+, and `./gradlew testDebugUnitTest` for the unit tests.
 2. Run the app on your phone. The phone must be on the same WiFi as DeskBuddy.
 3. Tap **Find** (or type the IP shown by `status` on the serial CLI), then tap **Connect**.
 4. Tap **Grant notification access** and enable DeskBuddy.

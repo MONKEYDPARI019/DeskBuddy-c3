@@ -69,7 +69,7 @@ Only one radio runs at a time. Switching saves the choice and restarts DeskBuddy
 - the app (Setup → Link, while connected)
 - the command line: `deskbuddy link ble` / `deskbuddy link wifi`
 - the serial command `link ble` / `link wifi`
-- the buttons: BTN1 + BTN2 held while pressing RESET
+- the buttons: BTN1 + BTN2 held while pressing RESET (BTN2 alone opens the WiFi setup portal, see [Change WiFi](#change-wifi))
 
 **WiFi setup (first time):**
 1. In WiFi mode, DeskBuddy opens its own network, **DeskBuddy_C3_Setup**.
@@ -77,6 +77,15 @@ Only one radio runs at a time. Switching saves the choice and restarts DeskBuddy
 3. Tap **Configure WiFi**, pick a **2.4 GHz** network, enter the password and tap **Save**.
 
 It remembers the network from then on. If the saved network can't be reached for 30 s (router off, moved house), the setup portal opens again for 3 minutes, then DeskBuddy retries the saved network, and keeps alternating. To forget the network: `deskbuddy wifi-forget`.
+
+### Change WiFi
+
+To move DeskBuddy to a different network while the old one is still in range (firmware 2.3.0+), use any one of these:
+- the app: Setup → Link → **CHANGE WIFI** (while connected, over Bluetooth or WiFi)
+- the buttons: hold **BTN2 alone** while pressing RESET, for about 1 s (the screen says "Change WiFi")
+- the command line: `deskbuddy wifi-setup`, or the serial command `wifi setup`
+
+DeskBuddy switches to WiFi mode and opens **DeskBuddy_C3_Setup** straight away. Join it and pick the new network as in the first-time setup. The old network stays saved: if nothing is set up within 3 minutes, DeskBuddy goes back to it.
 
 **In WiFi mode** DeskBuddy is reachable at:
 
@@ -91,8 +100,10 @@ The IP appears in the serial log as `[WiFi] online: 192.168.x.x …`, and in `de
 ## Notifications
 
 - Up to **8** are kept; the oldest drops off. They're cleared on restart.
-- Text is shown in plain ASCII: curly quotes become straight, `é` becomes `e`, `₹` becomes `Rs`, emoji become `*`. Characters from other scripts (e.g. Hindi, Kannada) show as `?`.
-- The app sends the first 63 characters of each message. The HTTP link and `app` command accept up to 127.
+- Text is shown in plain ASCII: curly quotes become straight, `é` becomes `e`, `₹` becomes `Rs`, emoji become `*`.
+- Other scripts: the app (Android 10+) turns Hindi, Kannada, Cyrillic, ... into Latin letters before sending, e.g. `नमस्ते` → `namaste`. Text that still can't be drawn shows as one `?` per word.
+- The app sends up to 127 characters of each message (title 31), never cutting an emoji in half. The HTTP link and `app` command accept up to 127.
+- Notifications that arrive while DeskBuddy is not connected are kept for 2 minutes and sent as soon as the link is back.
 - The app decides which apps are forwarded. Each app can be blocked in the app's Inbox screen.
 
 ## Sounds
@@ -108,7 +119,7 @@ Use them with `deskbuddy monitor` (interactive) or `deskbuddy cmd "<command>"` (
 | Command | What it does |
 |---|---|
 | `help` | List all commands |
-| `status` | Link, OLED, time, screen, notifications, memory, uptime, last reset reason |
+| `status` | Link, OLED, time, screen, notifications, memory, timing (longest loop, frame and OLED transfer since the last `status`), uptime, last reset reason |
 | `get` | Show all settings |
 | `set <key> <value>` | Change and save a setting (see below) |
 | `defaults` | Factory settings (keeps the radio choice) |
@@ -124,7 +135,9 @@ Use them with `deskbuddy monitor` (interactive) or `deskbuddy cmd "<command>"` (
 | `press 1\|2 [ms]` | Press a button in software |
 | `state` | The JSON status the app receives |
 | `app <json>` | Handle one app message, e.g. `app {"type":"notify","app":"Test","title":"Hi","body":"hello"}` |
+| `wifi setup` | Change WiFi: restart into the setup portal, keeping the old network as a fallback |
 | `wifi forget` | Erase the saved WiFi network |
+| `echo <text>` | Print `<text>` (the PC tool uses it to see where a reply ends) |
 | `off` | Power off (battery build) |
 | `reboot` | Restart |
 
