@@ -3,6 +3,53 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.3.0] - 2026-10-13
+
+### New
+- **Change WiFi** while the old network is still in range. Any of these restarts DeskBuddy in WiFi mode with the
+  setup portal **DeskBuddy_C3_Setup** open; the old network stays saved and is used again if nothing is set up within
+  3 minutes:
+  - the app: Setup → Link → **CHANGE WIFI**;
+  - the buttons: hold **BTN2 alone** while pressing RESET (~1 s);
+  - `deskbuddy wifi-setup`, the serial command `wifi setup`, or the app message `{"type":"wifi_setup"}`.
+- **Android app in the release:** every release now has `deskbuddy-app-vX.Y.Z-debug.apk` to install on the phone
+  (the repo has a Gradle wrapper; CI builds the app and runs its unit tests).
+- Installer window: **Change WiFi** button.
+- Firmware `status` shows timing: the longest loop, frame and OLED transfer since the last `status`.
+
+### Firmware
+- Smoother: the OLED gets only the parts of the screen that changed. A full frame is ~25 ms of I2C (most of a 33 ms
+  frame); a blinking eye or the clock's seconds bar is a few ms. A full repaint still happens every 10 s.
+- Fixed a phantom button click: a press must now last 30 ms **and** be read the same 3 times in a row, so noise around
+  a slow loop iteration can't pass as a click.
+- Fixed garbled replies over Bluetooth: every piece of a message now goes to the phone exactly as sent (before, a later
+  piece could overwrite an earlier one that had not been sent yet).
+- Hindi and other scripts the screen can't draw show as one `?` per word instead of one per letter.
+- `echo <text>` command (used by the PC tool to see where a reply ends).
+
+### `deskbuddy` tool, installer window, DeskBuddy.exe, npm
+- Fixed: `deskbuddy cmd` reported "No reply" (exit code 8) for commands that print nothing (`face happy`,
+  `screen next`, ...). They now return at once with exit code 0; an `unknown command` reply exits with 1 and a hint.
+- Fixed: right after a reset, Windows can say "Access is denied" for a moment; the monitor now retries for 3 s before
+  it reports the port as busy.
+- **DeskBuddy.exe starts about twice as fast** (4–8 s → 2.5–3.5 s on Windows 10): ~770 unused Tcl/Tk files (time zones,
+  translations, demo images) are no longer unpacked at every start. The npm program answers `--version` in ~0.27 s
+  (was ~0.47 s) and other commands start ~0.15 s sooner.
+- The installer window lists serial ports in the background (Refresh never freezes it), keeps the chosen board on
+  Refresh, and asks before closing while it is installing or erasing.
+
+### Android app 0.4.0
+- Reconnects at once when the screen comes on, Bluetooth is switched back on or a WiFi network appears, instead of
+  waiting for its retry timer (up to 30 s).
+- Notifications are no longer lost while reconnecting: they are kept for 2 minutes and sent once the link is back.
+- Hindi, Kannada, Cyrillic, ... are turned into Latin letters before sending (Android 10+), e.g. `नमस्ते` → `namaste`.
+  Messages are sent up to 127 characters and never cut in the middle of an emoji.
+- All notification work happens off the main thread.
+- Bluetooth: messages are split into lines before decoding, so a character split across two packets no longer turns
+  into garbage; long searches use a battery-friendlier scan mode.
+- After "Allow" in the Bluetooth permission prompt the app carries on (no more "tap again"); if Android stopped asking,
+  it opens the app's settings page.
+
 ## [2.2.1] - 2026-10-13
 
 ### Installer window and DeskBuddy.exe
