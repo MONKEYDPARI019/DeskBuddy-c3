@@ -88,10 +88,20 @@ def test_monitor_connects_and_reads_lines():
     assert h.lines == ["=== DeskBuddy C3 c3-2.0.0 (USB build) ==="]
 
 
-def test_monitor_first_open_busy_is_fatal():
-    h = Harness([PortBusyError("COM9 is busy")])
+def test_monitor_first_open_busy_is_fatal_when_it_stays_busy():
+    h = Harness([PortBusyError("COM9 is busy")] * 100)
     with pytest.raises(PortBusyError):
-        h.mon.step()
+        for _ in range(100):
+            h.mon.step()
+    assert monitor.BUSY_GRACE <= h.slept <= monitor.BUSY_GRACE + 1  # gave it a few seconds first
+
+
+def test_monitor_first_open_short_busy_is_not_fatal():
+    # Windows says "Access is denied" for a moment right after the port re-enumerates
+    h = Harness([PortBusyError("COM9 is busy"), PortBusyError("COM9 is busy"), ScriptedSerial()])
+    assert h.mon.step() is monitor.State.WAITING
+    assert h.mon.step() is monitor.State.WAITING
+    assert h.mon.step() is monitor.State.CONNECTED
 
 
 def test_monitor_first_open_missing_board_waits():

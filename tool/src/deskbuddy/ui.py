@@ -197,6 +197,7 @@ class InstallerWindow:
             ("help", "help"),
             ("Bluetooth", "link ble"),
             ("WiFi", "link wifi"),
+            ("Change WiFi", "wifi setup"),
             ("Reboot", "reboot"),
         ):
             ttk.Button(buttons, text=label, command=functools.partial(self.send, command)).pack(side="left", padx=2)
@@ -210,14 +211,26 @@ class InstallerWindow:
         return self.board_ports[index].device if 0 <= index < len(self.board_ports) else None
 
     def refresh_ports(self) -> None:
-        found = ports.list_ports()
+        # Listing ports can take a second on Windows: never on the Tk thread
+        threading.Thread(target=self._list_ports, daemon=True).start()
+
+    def _list_ports(self) -> None:
+        try:
+            found = ports.list_ports()
+        except Exception:  # a broken driver must not kill the window
+            found = []
+        self.events.put(Event("ports", found))
+
+    def _show_ports(self, found: list[ports.BoardPort]) -> None:
+        previous = self._selected_port()
         boards = ports.board_candidates(found)
         self.board_ports = boards or found
         labels = [
             f"{p.device} - {p.label or p.description}" + (" (found)" if p in boards else "") for p in self.board_ports
         ]
         self.port_box["values"] = labels or ["no board found - plug it in and press Refresh"]
-        self.port_box.current(0)
+        devices = [p.device for p in self.board_ports]
+        self.port_box.current(devices.index(previous) if previous in devices else 0)
         self.monitor_port_changed()
 
     def monitor_port_changed(self) -> None:
@@ -427,6 +440,8 @@ class InstallerWindow:
             self.hint_label.grid(row=5, column=0, columnspan=3, sticky="ew", padx=6, pady=4)
         elif ev.kind == "releases":
             self._show_releases(ev.value)
+        elif ev.kind == "ports":
+            self._show_ports(ev.value)
         elif ev.kind in ("done", "erased", "error"):
             self._finish(ev)
 
@@ -457,6 +472,9 @@ class InstallerWindow:
             messagebox.showerror("DeskBuddy", f"{exc.message}\n\n{exc.hint}")
 
     def _close(self) -> None:
+        question = "Installing or erasing is still running. Closing now can leave the board empty.\n\nClose anyway?"
+        if self.busy and not messagebox.askyesno("DeskBuddy", question, icon="warning"):
+            return
         self.monitor.stop()
         self.root.destroy()
 

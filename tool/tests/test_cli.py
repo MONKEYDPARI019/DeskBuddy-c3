@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from deskbuddy import __version__, cli, installer
-from deskbuddy.errors import EXIT_NO_BOARD, EXIT_NO_REPLY, NoBoardError, NoReplyError
+from deskbuddy.errors import EXIT_ERROR, EXIT_NO_BOARD, EXIT_NO_REPLY, NoBoardError, NoReplyError
 from tests.fakes import ScriptedSerial
 
 COMMANDS = [
@@ -21,6 +21,7 @@ COMMANDS = [
     "status",
     "link",
     "wifi-forget",
+    "wifi-setup",
     "reboot",
     "build",
     "ui",
@@ -72,6 +73,22 @@ def test_ports_none(monkeypatch):
     assert "No serial ports" in s.out.getvalue()
 
 
+def test_cmd_silent_command_succeeds_and_prints_nothing(board, monkeypatch):
+    monkeypatch.setattr(cli.serial_io, "run_command", lambda port, text, timeout=5.0: "")
+    s = Streams()
+    assert s.run("cmd", "face happy") == 0
+    assert s.out.getvalue() == ""
+
+
+def test_cmd_unknown_command_is_an_error_with_a_hint(board, monkeypatch):
+    reply = "unknown command 'wifi' (type help)\r\n"
+    monkeypatch.setattr(cli.serial_io, "run_command", lambda port, text, timeout=5.0: reply)
+    s = Streams()
+    assert s.run("wifi-setup") == EXIT_ERROR
+    assert "unknown command 'wifi'" in s.out.getvalue()
+    assert "deskbuddy flash" in s.err.getvalue()
+
+
 def test_cmd_prints_reply(board, monkeypatch):
     sent = {}
 
@@ -86,7 +103,9 @@ def test_cmd_prints_reply(board, monkeypatch):
     assert "DeskBuddy C3" in s.out.getvalue()
 
 
-@pytest.mark.parametrize(("command", "text"), [("status", "status"), ("wifi-forget", "wifi forget")])
+@pytest.mark.parametrize(
+    ("command", "text"), [("status", "status"), ("wifi-forget", "wifi forget"), ("wifi-setup", "wifi setup")]
+)
 def test_shortcuts(board, monkeypatch, command, text):
     seen = []
     monkeypatch.setattr(cli.serial_io, "run_command", lambda port, t, timeout=5.0: seen.append(t) or "ok")

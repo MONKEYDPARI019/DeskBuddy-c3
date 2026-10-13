@@ -20,6 +20,8 @@ BAUD = 115200
 READ_TIMEOUT = 0.1
 POLL_INTERVAL = 0.25
 IDLE_SECONDS = 0.8
+END_MARKER = "~deskbuddy-end~"  # `echo` prints it back: the reply to a command is complete
+_END_LINES = (END_MARKER.encode(), b"unknown command 'echo'")
 
 Clock = Callable[[], float]
 Sleeper = Callable[[float], None]
@@ -105,21 +107,59 @@ def read_until_idle(
     return bytes(buf)
 
 
+def _end_of_reply(buf: bytes) -> Optional[int]:
+    """Where the end-marker line starts in `buf` (None until a complete marker line has arrived)."""
+    for marker in _END_LINES:
+        pos = buf.find(marker)
+        if pos >= 0 and b"\n" in buf[pos:]:
+            return buf.rfind(b"\n", 0, pos) + 1
+    return None
+
+
+def read_until_end_marker(
+    ser: Any,
+    timeout: float,
+    clock: Clock = time.monotonic,
+    on_data: Optional[Callable[[bytes], None]] = None,
+) -> tuple[bytes, bool]:
+    """Read until the end-marker line arrives (returns the bytes before it, True) or `timeout` (all bytes, False)."""
+    start = clock()
+    buf = bytearray()
+    while True:
+        chunk = ser.read(max(1, ser.in_waiting))
+        if chunk:
+            buf.extend(chunk)
+            if on_data:
+                on_data(chunk)
+            end = _end_of_reply(bytes(buf))
+            if end is not None:
+                return bytes(buf[:end]), True
+        if clock() - start >= timeout:
+            return bytes(buf), False
+
+
 def run_command(
     port: str,
     text: str,
     timeout: float = 5.0,
-    idle: float = IDLE_SECONDS,
     opener: Optional[Opener] = None,
     clock: Clock = time.monotonic,
     on_data: Optional[Callable[[bytes], None]] = None,
 ) -> str:
-    """Send one command and return the reply text. Raises NoReplyError if the board stays silent."""
+    """Send one command and return the reply text ('' for a command that prints nothing).
+
+    `echo <END_MARKER>` is sent right behind the command. The firmware handles serial lines one
+    after the other, so the marker comes back exactly when the command has finished: the reply
+    ends there, without waiting for a quiet period. Firmware before 2.3.0 has no `echo` and
+    answers "unknown command 'echo'", which marks the end just as well. Raises NoReplyError
+    only if the board says nothing at all (no firmware, or a different program on the port).
+    """
     ser = (opener or open_serial)(port)
     try:
         ser.reset_input_buffer()
         send_line(ser, text)
-        data = read_until_idle(ser, idle=idle, timeout=timeout, clock=clock, on_data=on_data)
+        send_line(ser, f"echo {END_MARKER}")
+        data, finished = read_until_end_marker(ser, timeout=timeout, clock=clock, on_data=on_data)
     except (serial.SerialException, OSError) as exc:
         raise NoBoardError(
             f"Lost the connection to {port}", "The board restarted or was unplugged; try again."
@@ -128,6 +168,8 @@ def run_command(
         with contextlib.suppress(serial.SerialException, OSError):
             ser.close()
     reply = data.decode("utf-8", errors="replace")
+    if finished:
+        return reply
     if not reply.strip():
         raise NoReplyError(
             f"No reply from the board on {port} within {timeout:g} s",

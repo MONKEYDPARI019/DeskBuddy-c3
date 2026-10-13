@@ -112,9 +112,54 @@ def test_run_command_returns_reply(clock):
     ser = ScriptedSerial([b"\nDeskBuddy C3 c3-2.0.0 (USB build)\n", b"link ble\n"], clock=clock)
     reply = serial_io.run_command("COM9", "status", opener=lambda port: ser, clock=clock)
     assert "DeskBuddy C3" in reply
-    assert bytes(ser.written) == b"status\n"
+    assert bytes(ser.written) == f"status\necho {serial_io.END_MARKER}\n".encode()
     assert ser.reset_calls == 1
     assert not ser.is_open
+
+
+def _end(token: str = serial_io.END_MARKER) -> bytes:
+    return token.encode() + b"\r\n"
+
+
+def test_run_command_sends_an_end_marker_after_the_command(clock):
+    ser = ScriptedSerial([b"ok\r\n", _end()], clock=clock)
+    serial_io.run_command("COM9", "face happy", opener=lambda port: ser, clock=clock)
+    assert bytes(ser.written) == f"face happy\necho {serial_io.END_MARKER}\n".encode()
+
+
+def test_run_command_silent_command_succeeds_with_empty_reply(clock):
+    # 'face happy', 'screen next', 'sound hello' print nothing: that is success, not "no reply"
+    ser = ScriptedSerial([_end()], clock=clock)
+    assert serial_io.run_command("COM9", "face happy", opener=lambda port: ser, clock=clock) == ""
+    assert clock.now < 1.0  # no waiting for the timeout
+
+
+def test_run_command_stops_at_the_end_marker(clock):
+    ser = ScriptedSerial([b"line 1\r\nline 2\r\n" + _end() + b"[BLE] later noise\r\n"], clock=clock)
+    reply = serial_io.run_command("COM9", "status", opener=lambda port: ser, clock=clock)
+    assert reply == "line 1\r\nline 2\r\n"
+    assert clock.now < 1.0
+
+
+def test_run_command_end_marker_split_across_reads(clock):
+    ser = ScriptedSerial([b"hello\r\n~desk", b"buddy-end~\r\n"], clock=clock)
+    assert serial_io.run_command("COM9", "x", opener=lambda port: ser, clock=clock) == "hello\r\n"
+
+
+def test_run_command_older_firmware_without_echo_still_ends(clock):
+    # firmware before 2.3.0 has no 'echo' command: its "unknown command" line marks the end instead
+    old_end = b"unknown command 'echo' (type help)\r\n"
+    ser = ScriptedSerial([old_end], clock=clock)
+    assert serial_io.run_command("COM9", "face happy", opener=lambda port: ser, clock=clock) == ""
+    ser = ScriptedSerial([b"sad\r\n" + old_end], clock=clock)
+    assert serial_io.run_command("COM9", "face sad", opener=lambda port: ser, clock=clock) == "sad\r\n"
+
+
+def test_run_command_without_end_marker_returns_what_arrived(clock):
+    # e.g. 'link wifi': the board restarts before it answers the marker
+    ser = ScriptedSerial([b"[App] switching to WiFi\r\n"], clock=clock)
+    reply = serial_io.run_command("COM9", "link wifi", timeout=2, opener=lambda port: ser, clock=clock)
+    assert "switching" in reply
 
 
 def test_run_command_no_reply(clock):

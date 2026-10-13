@@ -21,6 +21,7 @@ from deskbuddy import serial_io
 from deskbuddy.errors import DeskBuddyError, PortBusyError
 
 RECONNECT_DELAY = 0.5
+BUSY_GRACE = 3.0  # first open: a port that is busy this long really is held by another program
 FLUSH_AFTER_IDLE_READS = 5
 WAITING = "waiting for board..."
 DISCONNECTED = "board disconnected - waiting for board..."
@@ -109,6 +110,7 @@ class ReconnectingMonitor:
         self._ever_connected = False
         self._announced_wait = False
         self._idle_reads = 0
+        self._busy_waited = 0.0
         self.state = State.WAITING
         self.port: Optional[str] = None
 
@@ -130,8 +132,12 @@ class ReconnectingMonitor:
         try:
             self._ser = self._opener(port)
         except PortBusyError:
+            # Right after a reset Windows reports "Access is denied" for a moment. On the first
+            # open, only a port that stays busy for BUSY_GRACE means another program holds it.
             if not self._ever_connected:
-                raise  # first open: somebody else really holds the port
+                if self._busy_waited >= BUSY_GRACE:
+                    raise
+                self._busy_waited += RECONNECT_DELAY
             self._wait()
             return
         except (DeskBuddyError, serial.SerialException, OSError):

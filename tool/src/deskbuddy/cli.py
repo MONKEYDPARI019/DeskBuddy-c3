@@ -14,10 +14,27 @@ import threading
 import traceback
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, TextIO
+from typing import TYPE_CHECKING, Any, Callable, Optional, TextIO
 
-from deskbuddy import REPO, __version__, envs, flasher, github, installer, monitor, paths, ports, serial_io
+from deskbuddy import REPO, __version__, envs, monitor, paths, ports, serial_io
 from deskbuddy.errors import EXIT_ERROR, EXIT_INTERRUPTED, EXIT_OK, DeskBuddyError, UsageError
+
+if TYPE_CHECKING:
+    from deskbuddy import flasher, github
+
+# github (urllib, http, email), flasher and installer (esptool helpers) take ~0.3 s to import.
+# They are imported inside the commands that need them, so `--version`, `ports`, `status`,
+# `monitor` and `--help` start quickly.
+_LAZY = ("flasher", "github", "installer")
+
+
+def __getattr__(name: str) -> Any:
+    """`cli.github` etc. still work (tests patch them); they load on first use."""
+    if name in _LAZY:
+        import importlib
+
+        return importlib.import_module(f"deskbuddy.{name}")
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class Console:
@@ -103,6 +120,8 @@ def _release_builds(rel: github.Release) -> list[str]:
 
 
 def cmd_versions(args: argparse.Namespace, con: Console) -> int:
+    from deskbuddy import github
+
     releases = github.GitHubClient().list_releases()
     if not releases:
         con.print(f"No releases published yet on github.com/{REPO}.")
@@ -118,6 +137,8 @@ def cmd_versions(args: argparse.Namespace, con: Console) -> int:
 
 
 def cmd_get(args: argparse.Namespace, con: Console) -> int:
+    from deskbuddy import github
+
     client = github.GitHubClient()
     release = client.get_release(args.version)
     con.print(f"Release {release.tag} ({release.date})")
@@ -153,6 +174,8 @@ def _ask_port(con: Console) -> Optional[ports.Asker]:
 
 
 def _flash_callbacks(con: Console, verbose: bool) -> flasher.FlashCallbacks:
+    from deskbuddy import flasher
+
     def hint(text: str) -> None:
         con.note("")
         con.note(f"  >>> {text} <<<")
@@ -168,6 +191,8 @@ def _flash_callbacks(con: Console, verbose: bool) -> flasher.FlashCallbacks:
 
 
 def cmd_flash(args: argparse.Namespace, con: Console) -> int:
+    from deskbuddy import installer
+
     opts = installer.InstallOptions(
         version=args.version,
         file=Path(args.file).expanduser() if args.file else None,
@@ -195,6 +220,8 @@ def _confirm(question: str) -> bool:
 
 
 def cmd_erase(args: argparse.Namespace, con: Console) -> int:
+    from deskbuddy import installer
+
     port = _port_for(args, con)
     if not args.yes and not _confirm(f"Erase EVERYTHING on {port} (firmware, settings and saved WiFi)?"):
         con.print("Cancelled. Nothing was erased.")
@@ -279,8 +306,12 @@ def _port_for(args: argparse.Namespace, con: Console) -> str:
 
 def cmd_cmd(args: argparse.Namespace, con: Console) -> int:
     port = _port_for(args, con)
-    reply = serial_io.run_command(port, args.text, timeout=args.timeout)
-    con.print(reply.strip("\r\n"))
+    reply = serial_io.run_command(port, args.text, timeout=args.timeout).strip("\r\n")
+    if reply:  # many commands ('face happy', 'screen next') just do it and print nothing
+        con.print(reply)
+    if reply.startswith("unknown command"):
+        con.note("  -> Type 'deskbuddy cmd help' for the commands; newer ones need newer firmware (deskbuddy flash).")
+        return EXIT_ERROR
     return EXIT_OK
 
 
@@ -293,6 +324,8 @@ def _shortcut(text: str) -> Callable[[argparse.Namespace, Console], int]:
 
 
 def cmd_link(args: argparse.Namespace, con: Console) -> int:
+    from deskbuddy import installer
+
     port = _port_for(args, con)
     mode = installer.switch_link(port, args.mode, status=con.note)
     con.print(f"Link is now {'Bluetooth (ble)' if mode == 'ble' else 'WiFi'} {con.ok}")
@@ -300,6 +333,8 @@ def cmd_link(args: argparse.Namespace, con: Console) -> int:
 
 
 def cmd_reboot(args: argparse.Namespace, con: Console) -> int:
+    from deskbuddy import installer
+
     port = _port_for(args, con)
     ser = serial_io.open_serial(port)
     try:
@@ -315,6 +350,8 @@ def cmd_reboot(args: argparse.Namespace, con: Console) -> int:
 
 
 def cmd_build(args: argparse.Namespace, con: Console) -> int:
+    from deskbuddy import installer
+
     pio_env = envs.to_pio_env(args.env)
     out_dir = Path(args.out).expanduser() if args.out else None
     path = Path(args.path).expanduser() if args.path else None
@@ -399,6 +436,12 @@ def build_parser() -> argparse.ArgumentParser:
     for name, text, help_text in (
         ("status", "status", "show the board status (shortcut for: cmd status)"),
         ("wifi-forget", "wifi forget", 'erase the saved WiFi network (shortcut for: cmd "wifi forget")'),
+        (
+            "wifi-setup",
+            "wifi setup",
+            "change WiFi: restart into WiFi mode with the setup portal open, even when the saved network"
+            ' is in range; firmware 2.3.0+ (shortcut for: cmd "wifi setup")',
+        ),
     ):
         p = add(name, _shortcut(text), help_text)
         p.add_argument("--timeout", type=float, default=5.0, metavar="S", help="max seconds to wait (default: 5)")
