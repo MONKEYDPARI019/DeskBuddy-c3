@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from deskbuddy import cli, esptool_compat, frozen, installer
+from deskbuddy import __version__, cli, esptool_compat, frozen, installer
 from deskbuddy.errors import BuildError
 
 
@@ -69,6 +69,12 @@ def test_entry_dispatches_hidden_esptool_flag(fake_esptool):
     fake = fake_esptool()
     assert frozen.entry(["--run-esptool", "version"]) == 0
     assert fake.argv == ["esptool", "version"]
+
+
+def test_entry_answers_version_without_loading_the_command_line(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "main", lambda args: pytest.fail("the command line was loaded"))
+    assert frozen.entry(["--version"]) == 0
+    assert capsys.readouterr().out == f"deskbuddy {__version__}\n"  # same text as argparse prints
 
 
 def test_entry_runs_the_command_line(monkeypatch):

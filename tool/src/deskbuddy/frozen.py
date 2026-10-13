@@ -75,6 +75,11 @@ def entry(argv: Optional[Sequence[str]] = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == [ESPTOOL_FLAG]:
         return run_esptool_main(args[1:])
+    if args == ["--version"]:  # the npm launcher's first check: answer without loading the command line
+        from deskbuddy import __version__
+
+        print(f"deskbuddy {__version__}", flush=True)
+        return 0
     from deskbuddy.cli import main
 
     return main(args)

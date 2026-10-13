@@ -53,6 +53,36 @@ BUNDLE_ARGS = [
 ]
 _ARCH = {"x86_64": "x64", "amd64": "x64", "arm64": "arm64", "aarch64": "arm64"}
 
+# Tcl/Tk data the installer window never uses: time zones (609 files), translations and demo
+# images. A one-file program unpacks every bundled file at each start (and Windows Defender
+# scans each one), so leaving these ~770 files out makes DeskBuddy.exe open much faster.
+UNUSED_DATA = ("_tcl_data/tzdata/", "_tcl_data/msgs/", "_tk_data/msgs/", "_tk_data/images/")
+_SPEC_FILTER = (
+    "# build_app.py: leave out Tcl/Tk data the installer window never uses (faster start)\n"
+    "a.datas = [d for d in a.datas if not d[0].replace('\\\\', '/').startswith({prefixes!r})]\n"
+)
+
+
+def build_with_filtered_data(name: str, options: list[str], entry: Path, dist: Path, work: Path) -> None:
+    """PyInstaller with the same options as on its command line, minus UNUSED_DATA.
+
+    pyi-makespec writes the spec, the filter goes in right after the analysis, then the spec is built.
+    """
+    BUILD.mkdir(parents=True, exist_ok=True)
+    makespec = [sys.executable, "-m", "PyInstaller.utils.cliutils.makespec", "--name", name, "--specpath", str(BUILD)]
+    subprocess.run([*makespec, *options, str(entry)], check=True)
+    spec = BUILD / f"{name}.spec"
+    text = spec.read_text(encoding="utf-8")
+    marker = "pyz = PYZ("
+    if marker not in text:
+        raise SystemExit(f"error: unexpected spec layout in {spec}")
+    text = text.replace(marker, _SPEC_FILTER.format(prefixes=UNUSED_DATA) + marker, 1)
+    spec.write_text(text, encoding="utf-8")
+    cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--distpath", str(dist)]
+    cmd += ["--workpath", str(work), str(spec)]
+    print("==> " + " ".join(cmd), flush=True)
+    subprocess.run(cmd, check=True)
+
 
 def platform_key() -> str:
     arch = _ARCH.get(platform.machine().lower())
@@ -71,27 +101,8 @@ def tool_version() -> str:
 
 
 def run_pyinstaller() -> Path:
-    cmd = [
-        sys.executable,
-        "-m",
-        "PyInstaller",
-        "--noconfirm",
-        "--clean",
-        "--onedir",
-        "--console",
-        "--name",
-        "deskbuddy",
-        "--distpath",
-        str(BUILD / "dist"),
-        "--workpath",
-        str(BUILD / "work"),
-        "--specpath",
-        str(BUILD),
-        *BUNDLE_ARGS,
-        str(PACKAGING / "entry.py"),
-    ]
-    print("==> " + " ".join(cmd), flush=True)
-    subprocess.run(cmd, check=True)
+    options = ["--onedir", "--console", *BUNDLE_ARGS]
+    build_with_filtered_data("deskbuddy", options, PACKAGING / "entry.py", BUILD / "dist", BUILD / "work")
     exe = BUILD / "dist" / "deskbuddy" / ("deskbuddy.exe" if sys.platform == "win32" else "deskbuddy")
     if not exe.is_file():
         raise SystemExit(f"error: PyInstaller did not produce {exe}")
@@ -143,32 +154,18 @@ def version_file(version: str) -> Path:
 
 def run_pyinstaller_gui(version: str) -> Path:
     """One windowed file with the installer window; esptool runs inside it like in the console build."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "PyInstaller",
-        "--noconfirm",
-        "--clean",
+    options = [
         "--onefile",
         "--windowed",
-        "--name",
-        GUI_NAME,
         "--icon",
         str(ICON),
         "--add-data",
         f"{ICON}{os.pathsep}.",  # window and taskbar icon, see deskbuddy.ui._set_icon
-        "--distpath",
-        str(BUILD / "dist-gui"),
-        "--workpath",
-        str(BUILD / "work-gui"),
-        "--specpath",
-        str(BUILD),
     ]
     if sys.platform == "win32":
-        cmd += ["--version-file", str(version_file(version))]
-    cmd += [*BUNDLE_ARGS, str(PACKAGING / "gui_entry.py")]
-    print("==> " + " ".join(cmd), flush=True)
-    subprocess.run(cmd, check=True)
+        options += ["--version-file", str(version_file(version))]
+    options += BUNDLE_ARGS
+    build_with_filtered_data(GUI_NAME, options, PACKAGING / "gui_entry.py", BUILD / "dist-gui", BUILD / "work-gui")
     exe = BUILD / "dist-gui" / (f"{GUI_NAME}.exe" if sys.platform == "win32" else GUI_NAME)
     if not exe.is_file():
         raise SystemExit(f"error: PyInstaller did not produce {exe}")
