@@ -102,7 +102,7 @@ def _attach_std_streams() -> None:
     import ctypes
     import msvcrt
 
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    kernel32 = ctypes.windll.kernel32
     kernel32.GetStdHandle.restype = ctypes.c_void_p
     invalid = ctypes.c_void_p(-1).value
     for name, std_id in (("stdout", -11), ("stderr", -12)):
@@ -112,7 +112,7 @@ def _attach_std_streams() -> None:
         if not handle or handle == invalid:
             continue
         try:
-            fd = msvcrt.open_osfhandle(handle, os.O_WRONLY)  # type: ignore[attr-defined]
+            fd = msvcrt.open_osfhandle(handle, os.O_WRONLY)
             raw = open(fd, "wb", buffering=0)  # noqa: SIM115
         except OSError:
             continue
@@ -147,10 +147,10 @@ def _enable_dpi_awareness() -> None:
     import ctypes
 
     try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)  # type: ignore[attr-defined]
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except (AttributeError, OSError):
         with contextlib.suppress(AttributeError, OSError):
-            ctypes.windll.user32.SetProcessDPIAware()  # type: ignore[attr-defined]
+            ctypes.windll.user32.SetProcessDPIAware()
 
 
 def _fatal(message: str) -> None:
@@ -159,7 +159,7 @@ def _fatal(message: str) -> None:
         import ctypes
 
         try:
-            ctypes.windll.user32.MessageBoxW(None, message, "DeskBuddy", 0x10)  # type: ignore[attr-defined]
+            ctypes.windll.user32.MessageBoxW(None, message, "DeskBuddy", 0x10)
             return
         except (AttributeError, OSError):
             pass
