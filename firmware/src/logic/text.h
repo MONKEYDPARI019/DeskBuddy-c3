@@ -69,6 +69,7 @@ inline size_t asciiFold(const char* src, char* dst, size_t n) {
     if (!dst || n == 0) return 0;
     size_t o = 0;
     bool lastSpace = true;                 // also trims leading spaces
+    bool lastUnknown = false;              // a run of unknown characters shows as one '?'
     const unsigned char* s = (const unsigned char*)(src ? src : "");
     while (*s && o + 1 < n) {
         uint32_t cp;
@@ -80,8 +81,13 @@ inline size_t asciiFold(const char* src, char* dst, size_t n) {
             if (cp < 0x20 || cp == 0x7F) continue;      // other control characters
             one[0] = (char)cp;
             rep = one;
+            lastUnknown = false;
         } else {
             rep = text_detail::foldCodePoint(cp);
+            // Hindi and other scripts the OLED font can't draw: one '?' per word, not per letter
+            bool unknown = rep[0] == '?' && rep[1] == '\0';
+            if (unknown && lastUnknown) continue;
+            if (*rep) lastUnknown = unknown;
         }
         for (; *rep && o + 1 < n; rep++) {
             if (*rep == ' ') {

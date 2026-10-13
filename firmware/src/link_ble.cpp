@@ -86,10 +86,19 @@ void bleService() {}
 void bleSend(const char* json) {
     if (!tx || !clients || !subscribed) return;
     size_t chunk = mtu > 3 ? mtu - 3 : 20;
+    // notify(data, len) copies each piece into its own buffer at once. (setValue() +
+    // notify() only flags the value as changed and the stack reads it later, by when
+    // the next piece may already have overwritten it: garbled JSON at the phone.)
+    static bool failed;
+    failed = false;
     frameChunks(json, chunk, [](const char* piece, size_t n) {
-        tx->setValue((const uint8_t*)piece, n);
-        tx->notify();
-        delay(3);                                  // let the stack queue each packet
+        if (failed) return;
+        for (int tries = 0; tries < 10; tries++) {
+            if (tx->notify((const uint8_t*)piece, n)) return;
+            if (!clients) break;
+            delay(2);                              // out of buffers: let the stack send some
+        }
+        failed = true;                             // drop the rest; the app asks again
     });
 }
 

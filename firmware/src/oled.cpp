@@ -2,6 +2,7 @@
 #include "config.h"
 #include <Arduino.h>
 #include <Wire.h>
+#include "logic/dirty_tiles.h"
 
 Display gfx(U8G2_R0, U8X8_PIN_NONE, PIN_SCL, PIN_SDA);
 
@@ -10,6 +11,11 @@ static bool present = false;
 static uint8_t contrast = 200;
 static uint8_t misses = 0;
 static uint32_t lastCheck = 0;
+static uint8_t shadow[128 * 8];            // what the panel shows (last frame sent)
+static bool fullSend = true;               // panel RAM unknown: send everything next time
+static uint32_t lastFull = 0;
+constexpr uint32_t FULL_REFRESH_MS = 10000;  // repaint all now and then (heals a garbled panel)
+static uint32_t sendUs = 0, sendMaxUs = 0; // last / longest frame transfer (CLI 'status')
 
 static bool ack(uint8_t a) {
     Wire.beginTransmission(a);
@@ -31,6 +37,7 @@ static void start(uint8_t a) {
     gfx.begin();
     gfx.setContrast(contrast);
     present = true;
+    fullSend = true;
     misses = 0;
 }
 
@@ -90,11 +97,30 @@ void oledService() {
     }
 }
 
-void oledSend()          { if (present && !misses) gfx.sendBuffer(); }   // skip while it is not answering
+// Sends only the 8x8 tiles that changed since the last frame: a full frame is
+// ~25 ms of I2C, a blinking eye or the seconds bar ~1-3 ms. Skipped while the
+// OLED is not answering.
+void oledSend() {
+    if (!present || misses) return;
+    uint32_t t0 = micros();
+    uint8_t* buf = gfx.getBufferPtr();
+    if (fullSend || millis() - lastFull >= FULL_REFRESH_MS) {
+        gfx.sendBuffer();
+        lastFull = millis();
+        memcpy(shadow, buf, sizeof(shadow));
+        fullSend = false;
+    } else {
+        diffTiles(buf, shadow, 128, 8, [](int page, int tx, int tw) { gfx.updateDisplayArea(tx, page, tw, 1); });
+    }
+    sendUs = micros() - t0;
+    if (sendUs > sendMaxUs) sendMaxUs = sendUs;
+}
+
+void oledSendStats(uint32_t* lastUs, uint32_t* maxUs) { *lastUs = sendUs; *maxUs = sendMaxUs; sendMaxUs = 0; }
 bool oledPresent()       { return present; }
 uint8_t oledAddress()    { return addr; }
 void oledContrast(uint8_t c) { contrast = c; if (present) gfx.setContrast(c); }
-void oledPower(bool on)  { if (present) gfx.setPowerSave(on ? 0 : 1); }
+void oledPower(bool on)  { if (present) gfx.setPowerSave(on ? 0 : 1); fullSend = true; }
 
 void oledReinit() {
     uint8_t a = probe();

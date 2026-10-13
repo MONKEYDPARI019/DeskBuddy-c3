@@ -12,7 +12,8 @@ extern Display gfx;
 
 void    oledBegin();                 // call once in setup()
 void    oledService();               // call every loop: hot-plug check
-void    oledSend();                  // send the buffer (skipped while the OLED is missing)
+void    oledSend();                  // send the changed tiles (skipped while the OLED is missing)
+void    oledSendStats(uint32_t* lastUs, uint32_t* maxUs);   // transfer time; resets the max
 bool    oledPresent();
 uint8_t oledAddress();               // 0x3C / 0x3D (0 if never found)
 void    oledContrast(uint8_t c);

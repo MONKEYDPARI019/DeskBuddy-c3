@@ -1,16 +1,17 @@
 #include "buttons.h"
 #include "config.h"
+#include "logic/debounce.h"
 #include <Arduino.h>
 
 namespace {
 
 constexpr uint32_t DEBOUNCE_MS = 30;
+constexpr uint8_t DEBOUNCE_SAMPLES = 3;      // reads in a row (the loop reads every ~1 ms)
 
 struct Button {
+    explicit Button(int p) : pin(p) {}
     int pin;
-    bool stable = false;         // debounced "down"
-    bool lastRaw = false;
-    uint32_t rawSince = 0;
+    Debouncer db;                // debounced "down" in db.stable
     uint32_t downAt = 0;
     bool powerFired = false;
     uint32_t simUntil = 0;       // software press active until this time
@@ -21,16 +22,15 @@ struct Button {
     }
 };
 
-Button b[2] = {{PIN_BTN1}, {PIN_BTN2}};
+Button b[2] = {Button(PIN_BTN1), Button(PIN_BTN2)};
 
 BtnEvent update(Button& k, bool isBtn1) {
     uint32_t now = millis();
     bool r = k.raw();
     if (k.simUntil && (int32_t)(k.simUntil - now) <= 0) k.simUntil = 0;
-    if (r != k.lastRaw) { k.lastRaw = r; k.rawSince = now; }
-    if (r == k.stable || now - k.rawSince < DEBOUNCE_MS) {
+    if (!k.db.update(r, now, DEBOUNCE_MS, DEBOUNCE_SAMPLES)) {
         // no change; check the power hold while BTN1 is down
-        if (isBtn1 && k.stable && !k.powerFired && now - k.downAt >= POWER_HOLD_MS) {
+        if (isBtn1 && k.db.stable && !k.powerFired && now - k.downAt >= POWER_HOLD_MS) {
             k.powerFired = true;
 #if FEATURE_BATTERY
             return BtnEvent::Power;
@@ -38,7 +38,6 @@ BtnEvent update(Button& k, bool isBtn1) {
         }
         return BtnEvent::None;
     }
-    k.stable = r;
     if (r) {                                   // pressed
         k.downAt = now;
         k.powerFired = false;
@@ -58,9 +57,9 @@ BtnEvent update(Button& k, bool isBtn1) {
 void buttonsBegin() {
     for (auto& k : b) {
         pinMode(k.pin, INPUT_PULLUP);
-        k.lastRaw = k.stable = k.raw();       // a button held at boot does not "click"
-        k.rawSince = k.downAt = millis();
-        k.powerFired = k.stable;              // and does not trigger power off either
+        k.db = Debouncer(k.raw(), millis());  // a button held at boot does not "click"
+        k.downAt = millis();
+        k.powerFired = k.db.stable;           // and does not trigger power off either
     }
 }
 
@@ -80,7 +79,7 @@ bool buttonDown(uint8_t btn) {
 uint32_t buttonHeldMs(uint8_t btn) {
     if (btn < 1 || btn > 2) return 0;
     const Button& k = b[btn - 1];
-    return k.stable && !k.powerFired ? millis() - k.downAt : 0;
+    return k.db.stable && !k.powerFired ? millis() - k.downAt : 0;
 }
 
 void buttonSimulate(uint8_t btn, uint32_t ms) {

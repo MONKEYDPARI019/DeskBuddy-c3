@@ -5,6 +5,8 @@
 #include "logic/notif_store.h"
 #include "logic/tz.h"
 #include "logic/battery_curve.h"
+#include "logic/debounce.h"
+#include "logic/dirty_tiles.h"
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -68,9 +70,14 @@ static void testText() {
     EQ(fold("Party \xF0\x9F\x8E\x89\xF0\x9F\x8E\x89!"), "Party **!");
     EQ(fold("thumbs \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD up"), "thumbs * up");      // skin tone dropped
     EQ(fold("\xE2\x9D\xA4\xEF\xB8\x8F you"), "* you");                       // heart + VS16
-    EQ(fold("\xE0\xA4\xA8\xE0\xA4\xAE"), "??");                              // Hindi: 2 chars
+    EQ(fold("\xE0\xA4\xA8\xE0\xA4\xAE"), "?");                               // Hindi word: one ?
+    // "namaste dost" in Devanagari: one ? per word, not a screen full of them
+    EQ(fold("\xE0\xA4\xA8\xE0\xA4\xAE\xE0\xA4\xB8\xE0\xA5\x8D\xE0\xA4\xA4\xE0\xA5\x87 "
+            "\xE0\xA4\xA6\xE0\xA5\x8B\xE0\xA4\xB8\xE0\xA5\x8D\xE0\xA4\xA4"), "? ?");
+    EQ(fold("Mom: \xE0\xA4\x96\xE0\xA4\xBE\xE0\xA4\xA8\xE0\xA4\xBE ready"), "Mom: ? ready");
+    EQ(fold("what?? ok?"), "what?? ok?");                                    // real ? marks stay
     EQ(fold("\xE2\x82\xB9" "500"), "Rs500");
-    EQ(fold("bad \xFF\xFE bytes \xE2\x82"), "bad ?? bytes ?");
+    EQ(fold("bad \xFF\xFE bytes \xE2\x82"), "bad ? bytes ?");
     EQ(fold(nullptr), "");
     EQ(fold("abcdefghij", 5), "abcd");                                      // always terminated
     EQ(fold("ab\xE2\x80\xA6", 5), "ab..");                                   // multi-char replacement cut
@@ -155,12 +162,90 @@ static void testBattery() {
     }
 }
 
+static void testDebounce() {
+    // a real press: steady LOW for 30 ms with the loop sampling every ms
+    Debouncer d;
+    int changes = 0;
+    for (uint32_t t = 0; t < 40; t++) changes += d.update(true, t, 30, 3);
+    CHECK(changes == 1 && d.stable);
+    for (uint32_t t = 40; t < 80; t++) changes += d.update(false, t, 30, 3);
+    CHECK(changes == 2 && !d.stable);
+
+    // phantom: two noisy LOW samples on both sides of a 40 ms loop stall must not count
+    Debouncer p;
+    CHECK(!p.update(true, 0, 30, 3));
+    CHECK(!p.update(true, 40, 30, 3));             // 40 ms "held", but only 2 samples
+    CHECK(!p.update(false, 41, 30, 3));
+    CHECK(!p.stable);
+
+    // a press seen across a stall is still accepted once enough samples agree
+    Debouncer s;
+    CHECK(!s.update(true, 0, 30, 3));
+    CHECK(!s.update(true, 40, 30, 3));
+    CHECK(s.update(true, 41, 30, 3) && s.stable);
+
+    // bouncing contacts restart the count
+    Debouncer b;
+    bool seq[] = {true, false, true, false, true};
+    for (int i = 0; i < 5; i++) CHECK(!b.update(seq[i], (uint32_t)i * 2, 30, 3));
+    CHECK(!b.stable);
+
+    // millis() wrap-around
+    Debouncer w;
+    uint32_t t0 = 0xFFFFFFF0u;
+    for (uint32_t i = 0; i < 40; i++) w.update(true, t0 + i, 30, 3);
+    CHECK(w.stable);
+
+    // start state (a button held at boot)
+    Debouncer h(true, 5);
+    CHECK(h.stable);
+    CHECK(!h.update(true, 6, 30, 3));
+}
+
+static void testDirtyTiles() {
+    const int W = 128, PAGES = 8;
+    static uint8_t cur[W * PAGES], shadow[W * PAGES];
+    struct Span { int page, tx, tw; };
+    std::vector<Span> spans;
+    auto rec = [&](int page, int tx, int tw) { spans.push_back({page, tx, tw}); };
+
+    memset(cur, 0, sizeof(cur)); memset(shadow, 0, sizeof(shadow));
+    CHECK(diffTiles(cur, shadow, W, PAGES, rec) == 0);   // nothing changed: nothing sent
+    CHECK(spans.empty());
+
+    cur[0] = 1;                                          // page 0, column 0 -> tile 0
+    cur[3 * W + 70] = 0x80;                              // page 3, column 70 -> tile 8
+    cur[3 * W + 100] = 0x01;                             // page 3, column 100 -> tile 12
+    CHECK(diffTiles(cur, shadow, W, PAGES, rec) == 2);
+    CHECK(spans.size() == 2);
+    if (spans.size() == 2) {
+        CHECK(spans[0].page == 0 && spans[0].tx == 0 && spans[0].tw == 1);
+        CHECK(spans[1].page == 3 && spans[1].tx == 8 && spans[1].tw == 5);   // tiles 8..12
+    }
+    CHECK(memcmp(cur, shadow, sizeof(cur)) == 0);        // shadow now matches
+    spans.clear();
+    CHECK(diffTiles(cur, shadow, W, PAGES, rec) == 0);   // second time: nothing
+
+    cur[7 * W + 127] ^= 0xFF;                            // last tile of the last page
+    CHECK(diffTiles(cur, shadow, W, PAGES, rec) == 1);
+    CHECK(spans.size() == 1 && spans[0].page == 7 && spans[0].tx == 15 && spans[0].tw == 1);
+
+    spans.clear();                                       // everything changed: 8 full rows
+    for (int i = 0; i < W * PAGES; i++) cur[i] = (uint8_t)~shadow[i];
+    CHECK(diffTiles(cur, shadow, W, PAGES, rec) == 8);
+    bool full = spans.size() == 8;
+    for (auto& sp : spans) full = full && sp.tx == 0 && sp.tw == 16;
+    CHECK(full);
+}
+
 int main() {
     testFraming();
     testText();
     testNotifs();
     testTz();
     testBattery();
+    testDebounce();
+    testDirtyTiles();
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
