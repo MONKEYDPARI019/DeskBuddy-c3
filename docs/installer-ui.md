@@ -47,10 +47,10 @@ When it's finished, the status line says **"Installed DeskBuddy C3 vX.Y.Z"**, an
 
 1. Pick the board under **Board**.
 2. Click **Erase chip**, and confirm with **Yes**.
-3. The status line says **"Chip erased (empty)."** after a few seconds. The screen stays dark, because there's no firmware on the chip.
+3. The status line says **"Chip erased (empty): click INSTALL."** after a few seconds. The screen stays dark, because there's no firmware on the chip, and the serial monitor stays paused (see below).
 4. Click **INSTALL** to put DeskBuddy back. It starts like a new board: Bluetooth mode, default settings, no WiFi saved.
 
-After erasing, the chip waits in download mode, so its USB port stays steady. If you press RESET before installing, the empty chip restarts over and over and the port keeps dropping out. That's normal; just install, or hold BOOT, tap RESET and release BOOT first.
+After erasing, the chip waits in download mode, so its USB port stays steady. The window leaves the port alone until INSTALL (like `deskbuddy erase`), because opening it again can knock the empty chip out of download mode. If you press RESET before installing, the empty chip restarts over and over, the port keeps dropping out, and the monitor shows `invalid header: 0xffffffff` with a large count and the status **"Board is empty: click INSTALL."** That's normal; just install, or hold BOOT, tap RESET and release BOOT first.
 
 **Erase chip or Erase settings?** **Erase chip** only erases. **Erase settings** + **INSTALL** erases the whole chip and then installs the firmware in one go.
 

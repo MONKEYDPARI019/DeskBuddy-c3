@@ -1,60 +1,75 @@
-# PLAN — DeskBuddy C3 repo + `deskbuddy` tool
+# PLAN — DeskBuddy C3 hardening (2.2.1 → next release)
 
-Source of truth: `MASTER_PROMPT_DeskBuddy-C3.md` (in `D:\ard\c3bud`). This file tracks progress.
+Started 2026-10-13. The earlier plan (repo setup → v2.0.0) is complete and lives in git history
+(`git show cb63588:PLAN.md`). This file tracks the current work; checkboxes are kept current.
 
-## Research findings (2026-10-08)
+## Environment facts (checked 2026-10-13)
 
-- esptool **5.x requires Python ≥ 3.10**; 4.x (last 4.10.0) still supports 3.7+. The tool depends on
-  `esptool>=4.8,<6` so Python 3.9 gets v4 and newer Pythons get v5.
-- v5 renamed commands/options to kebab-case (`merge-bin`, `write-flash`, `--flash-mode`, `default-reset`);
-  it still accepts the v4 snake_case names but prints deprecation warnings. The tool picks the spelling for the
-  installed major version.
-- Progress: v4 prints `Writing at 0x00010000... (5 %)`; v5 (non-TTY) prints one line per update,
-  `Writing at 0x00010000 [====>   ]  30.5% …`. One regex covers both. esptool runs as a subprocess
-  (`python -m esptool`) with `NO_COLOR=1`, which is stable across both majors (the v5 Python API differs from v4).
-- pyserial 3.5 is current. PlatformIO Core 6.2.0 (Python ≥ 3.9).
-- `gh` CLI is **not installed** → G2 gives the exact git/web commands instead.
-- `app/` has `gradle-wrapper.properties` but no `gradlew` or wrapper jar → CI skips the Android build with a notice.
+- Windows 10, Python 3.13, Node 24, PlatformIO in Python 3.13 Scripts, npm user `optimus_19` (logged in).
+- `gh` CLI not installed → GitHub Actions/Releases are polled through the REST API with the token
+  from Git Credential Manager (`git credential fill`), never printed.
+- No `java` on PATH; JDK 21 at `%USERPROFILE%\.jdks\jbr-21.0.11-1`, JDK 25 at `D:\ANDROID_STUDIO\jbr`.
+  Android SDK at `%LOCALAPPDATA%\Android\Sdk` (platforms 34, build-tools 34). Gradle 8.7 dist cached.
+- C: has ~16 GB free — PlatformIO core stays where it is; big caches go to D:.
+- Board: not plugged in at start (`deskbuddy ports` → none). Hardware tests run only if it appears.
+- 2.2.1 zip already applied (config.h says `c3-2.2.1`, 14 modified files). No stray
+  `deskbuddy-2.2.0-update/` folder. `deskbuddy-windows-fix.zip` in repo root is git-ignored (left alone).
 
-## Milestones
+## Decisions
 
-### A — repository setup
-- [x] A1 git init `D:\ard\DeskBuddy-C3` (main), LICENSE, .gitignore, .gitattributes
-- [x] A2 copy firmware (no `.pio/`)
-- [x] A3 copy Android app (no build/.gradle/.idea/local.properties/keystores)
-- [x] A4 README stub
+- D1 The ECC `/plan` command normally waits for confirmation; the owner asked for full autonomy,
+  so this plan is written down and executed without waiting.
+- D2 Local gate before every commit: pytest (cov ≥ 80 %), ruff check + format, mypy (native and
+  `--platform win32`), `npm test`, `pio run -e c3` and `-e c3-battery`, host tests, and the
+  Android `assembleDebug` once the wrapper exists.
+- D3 Next version number: decided at Phase 3 by content (fixes only → 2.2.2, features → 2.3.0).
 
-### B — firmware build + images
-- [x] B1 `scripts/merge_firmware.py` (pio run → pio project metadata → esptool merge-bin → versioned .bin + SHA256SUMS), logic in `deskbuddy.firmware`
-- [x] B2 `manifest.json`
-- [x] B3 host tests green (537 checks)
-- [x] B4 local build of `c3` + `c3-battery` with isolated `PLATFORMIO_CORE_DIR` (D:\.deskbuddy\platformio; C: was full)
+## Phase 1 — ship 2.2.1
 
-### C — CI/CD
-- [x] `ci.yml`: firmware builds + host tests, ruff + pytest matrix (ubuntu/windows × 3.9/3.12), Android skip notice
-- [x] `release.yml`: tag ↔ FW_VERSION check, build + merge, GitHub Release with assets + CHANGELOG notes
+- [ ] 1.1 Run every local check on the applied zip; fix anything red
+- [ ] 1.2 Commit (Conventional Commits), push main, ci + app green
+- [ ] 1.3 Tag v2.2.1, release.yml green
+- [ ] 1.4 Verify release assets + SHA256SUMS; latest/download/DeskBuddy.exe is 2.2.1
+- [ ] 1.5 `npm publish`, verify fresh global install → `deskbuddy --version` = 2.2.1
 
-### D — `deskbuddy` CLI (`tool/`)
-- [x] package skeleton (pyproject, hatchling, console script)
-- [x] core modules: ports, serial_io, monitor, github, flasher, firmware(merge), builder, doctor
-- [x] commands: ports, doctor, versions, get, flash, monitor, cmd, status, link, wifi-forget, reboot, build, ui, --version
+## Phase 2 — bugs and lag
 
-### E — installer window
-- [x] Tkinter UI over the shared core (worker thread + queue)
+Firmware
+- [ ] 2.F1 Read all sources; loop never blocks (33 ms frame / 100 ms asleep)
+- [ ] 2.F2 OLED I2C clock + redraw cost
+- [ ] 2.F3 BLE/WiFi reconnect + link switch
+- [ ] 2.F4 JSON: long / emoji / Hindi text vs MAX_LINE 1536 (host tests)
+- [ ] 2.F5 NVS write rate
+- [ ] 2.F6 Watchdog safety
+- [ ] 2.F7 Button debounce (phantom BTN1 click)
+- [ ] 2.F8 Battery build paths compile and make sense
 
-### F — tests and quality
-- [x] pytest suite covering the listed areas, coverage ≥ 80 %
-- [x] ruff clean, mypy on core
-- [x] code review + python-reviewer + security-reviewer findings resolved/documented
+Tool / installer window / DeskBuddy.exe / npm
+- [ ] 2.T1 `deskbuddy cmd` exit code 8 for silent commands (TDD)
+- [ ] 2.T2 Reset / re-enumerate / erased / port-busy handling in flash, erase, install, monitor
+- [ ] 2.T3 Window never freezes (50 ms poll budget kept)
+- [ ] 2.T4 Startup time of DeskBuddy.exe and the npm program: measure, improve
+- [ ] 2.T5 Clear error messages
 
-### G — hardware test + release
-- [x] G1 end-to-end on the board (doctor, flash --local, status, link ble)
-- [x] G2 ask before repo creation / push / tag; verify release assets; fresh-venv pip install test
-- [x] CHANGELOG, HANDOFF.md
+Android
+- [ ] 2.A1 Gradle wrapper (gradlew, gradlew.bat, jar) → CI builds APK, release attaches it
+- [ ] 2.A2 Reconnect after sleep / BT off / WiFi change; stability on both radios
+- [ ] 2.A3 Notification forwarding delay; nothing on the main thread
+- [ ] 2.A4 Permissions on Android 12–14; FGS rules for targetSdk 34; battery use
 
-## Status notes
+Feature
+- [ ] 2.W1 Change WiFi while the old network is in range (firmware command + CLI + app button + docs)
 
-- 257 pytest tests, 93.7 % coverage (Python 3.9 and 3.13), ruff + mypy (win32 and linux) clean.
-- Hardware test on COM9 done: doctor, flash --local, status, link ble/wifi, monitor, reboot, esptool v4 and v5.
-- Hardware test found that flashing the merged image wiped NVS; fixed (NVS is skipped unless --erase).
-- Released v2.0.0: https://github.com/MONKEYDPARI019/DeskBuddy-c3/releases/tag/v2.0.0
+Docs
+- [ ] 2.D1 README, docs/*, CHANGELOG match behaviour
+
+## Phase 3 — release
+
+- [ ] 3.1 Version bump in the 3 places (+ Android versionCode/versionName)
+- [ ] 3.2 CHANGELOG, commit, push, green CI
+- [ ] 3.3 Tag, release, verify assets, npm publish, verify install
+- [ ] 3.4 (optional) Linux AppImage
+
+## Log
+
+- 2026-10-13 plan written.

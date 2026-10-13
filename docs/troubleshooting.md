@@ -67,6 +67,8 @@ That's normal. The C3's USB restarts with the chip. The tool and the monitor wai
 ### The board keeps connecting and disconnecting after an erase
 An empty chip has no program to run, so it restarts over and over, and its USB port drops out each time. Hold **BOOT**, tap **RESET**, release **BOOT**: the chip then waits quietly in download mode. Install the firmware (`deskbuddy flash`, or **INSTALL** in the window). `deskbuddy erase` and **Erase chip** already leave the chip in download mode, so this only happens if you press RESET before installing.
 
+In the installer window (2.2.1 and newer) the status line then says **"Board is empty: click INSTALL."**, and the monitor shows the repeated `invalid header: 0xffffffff` line once with a count. Older versions of the window could stop responding while an empty chip was printing; update to the latest DeskBuddy.exe or `npm install -g deskbuddy-c3`.
+
 If it keeps doing this **after** a successful install, the firmware itself is restarting: save the monitor output (`deskbuddy monitor --log boot.txt`, or **Save log** in the window) and look for `rst:`, `assert`, `Guru Meditation` or `Brownout`.
 
 ### The board keeps resetting as soon as a serial monitor opens
@@ -105,6 +107,12 @@ That's usually normal: red is only for silent mode or a low battery, and yellow 
 - Check `get` for `silent 0` and a `volume` above 0.
 - The buzzer must be **passive**. An active buzzer only clicks or beeps once.
 - Run `test buzzer`.
+
+### The buzzer sounds while flashing
+During an upload the chip runs its ROM bootloader, not DeskBuddy, so nothing drives the buzzer pin. Firmware 2.2.1 and
+later park the pin LOW before every restart, so uploads are quiet, but only once 2.2.1 is on the board: the upload that
+installs it may still beep, and a board with no firmware at all (just erased, then unplugged) can too. If yours still
+beeps after that, put a 10 kΩ resistor from GPIO10 to GND.
 
 ---
 

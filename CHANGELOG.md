@@ -3,6 +3,31 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.2.1] - 2026-10-13
+
+### Installer window and DeskBuddy.exe
+- Fixed: the window froze ("Not Responding") when the board printed very fast. An erased ESP32-C3 prints
+  `invalid header: 0xffffffff` thousands of times a second while it restarts over and over (the USB port keeps
+  disconnecting and reconnecting). The window now spends at most 50 ms of every 80 ms tick on new output, draws it in
+  one batch, shows a repeated line once with a count (`invalid header: 0xffffffff   [x3000]`), and skips what it
+  can't keep up with ("[... N lines skipped ...]").
+- When it sees that output, the status line says **"Board is empty: click INSTALL."**
+- **Erase chip** now leaves the serial monitor paused until the next INSTALL, exactly like `deskbuddy erase`. Opening
+  the port again right after the erase could reset the empty chip out of download mode, which started the restart loop
+  in the first place.
+
+### Firmware
+- Fixed: the buzzer sounded during the whole upload (`deskbuddy flash`, INSTALL) until the board restarted. Flashing
+  restarts the chip into its ROM bootloader, the firmware stops running, and GPIO10 was left undriven. Between sounds
+  the buzzer pin is now driven LOW and **held** (`gpio_hold_en`); the hold survives that restart, so the pin stays LOW
+  and silent until the new firmware starts. `buzzerBegin()` is now the first line of `setup()`.
+- The board needs this firmware once before it helps: the upload that installs 2.2.1 can still beep (the old firmware
+  never set the hold); later uploads are quiet.
+
+### Also
+- The tool and npm package are 2.2.1, following the project version.
+- CI: removed type-ignore comments that mypy reported as unused.
+
 ## [2.2.0] - 2026-10-13
 
 ### Double-click app for Windows

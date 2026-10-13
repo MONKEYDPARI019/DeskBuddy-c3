@@ -45,7 +45,7 @@ The first `deskbuddy` command then downloads the ready-made program for your com
 deskbuddy --version
 ```
 
-It should print `deskbuddy 2.2.0` (or newer).
+It should print `deskbuddy 2.2.1` (or newer).
 
 > **PowerShell says "running scripts is disabled on this system"?** Windows blocks npm's PowerShell launchers by default. Run this once, then try again:
 >
