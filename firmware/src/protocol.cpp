@@ -124,6 +124,9 @@ void protocolHandle(const char* line, ReplyFn reply) {
         if (!appSound(d["name"] | "")) error(reply, "unknown sound");
     } else if (!strcmp(type, "set")) {
         handleSet(d, reply);
+    } else if (!strcmp(type, "wifi_setup")) {
+        reply("{\"type\":\"wifi_setup\",\"ap\":\"" SETUP_AP "\",\"restart_ms\":1500}");
+        appWifiSetup();
     } else if (!strcmp(type, "power_off")) {
         if (!appPowerOff("app")) error(reply, "power off needs the battery build");
     } else if (!strcmp(type, "ptt") || !strcmp(type, "think") || !strncmp(type, "say_", 4)) {

@@ -23,6 +23,13 @@
 
 static void replyToApp(const char* json) { linkSend(json); }
 
+// Loop timing for 'status': the loop must never block (a frame is 33 ms).
+static uint32_t loopMaxUs = 0, frameMaxUs = 0;
+void loopStats(uint32_t* loopUs, uint32_t* frameUs) {
+    *loopUs = loopMaxUs; *frameUs = frameMaxUs;
+    loopMaxUs = frameMaxUs = 0;
+}
+
 void setup() {
     buzzerBegin();                             // first: keep the buzzer pin LOW (silent) from the very start
     powerWakeCheck();                          // battery build: woken by BTN1? must be held 3 s
@@ -50,9 +57,22 @@ void setup() {
             const char* name = settings.link == LINK_BLE ? "Bluetooth" : "WiFi";
             uiSplash(settings.link == LINK_BLE ? "Bluetooth mode" : "WiFi mode", "let go of the buttons");
             Serial.printf("[Boot] both buttons held: switched to %s\n", name);
-            while (buttonDown(1) || buttonDown(2)) delay(10);
+            for (uint32_t t = millis(); (buttonDown(1) || buttonDown(2)) && millis() - t < 10000;) delay(10);
             uiSplash("DeskBuddy C3", name);
             delay(600);
+        }
+    } else if (buttonDown(2)) {
+        // Change WiFi without a PC: hold BTN2 alone while pressing RESET, ~1 s ->
+        // WiFi mode with the setup portal open (the saved network is kept as a fallback).
+        uint32_t t = millis();
+        while (buttonDown(2) && !buttonDown(1) && millis() - t < 1000) delay(10);
+        if (buttonDown(2) && !buttonDown(1)) {
+            settings.link = LINK_WIFI;
+            settingsSave();
+            linkRequestWifiSetup();
+            uiSplash("Change WiFi", "join " SETUP_AP);
+            Serial.println("[Boot] BTN2 held: opening the WiFi setup portal");
+            for (uint32_t w = millis(); buttonDown(2) && millis() - w < 10000;) delay(10);
         }
     }
 
@@ -65,6 +85,7 @@ void setup() {
 void loop() {
     static uint32_t lastFrame = 0;
     static char msg[MAX_LINE];
+    uint32_t t0 = micros();
 
     cliService();
     linkService();
@@ -81,8 +102,13 @@ void loop() {
     uint32_t frame = appSleeping() ? FRAME_MS_SLEEPING : FRAME_MS;
     if (millis() - lastFrame >= frame) {
         lastFrame = millis();
+        uint32_t f0 = micros();
         faceUpdate();
         uiRender();
+        uint32_t f = micros() - f0;
+        if (f > frameMaxUs) frameMaxUs = f;
     }
+    uint32_t used = micros() - t0;
+    if (used > loopMaxUs) loopMaxUs = used;
     delay(1);                                  // let the idle task run (watchdog)
 }

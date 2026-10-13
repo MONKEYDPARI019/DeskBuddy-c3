@@ -45,6 +45,7 @@ String linkAddress()          { return mode == LINK_WIFI ? wifiAddress() : bleAd
 int  linkRssi()               { return mode == LINK_WIFI ? wifiRssi() : 0; }
 bool linkTimeFromNetwork()    { return mode == LINK_WIFI && wifiTimeSynced(); }
 void linkForgetWifi()         { wifiForget(); }
+void linkRequestWifiSetup()   { wifiRequestSetup(); }
 void linkShutdown()           { if (mode == LINK_WIFI) wifiStop(); else bleStop(); }
 
 const char* linkStateName() {

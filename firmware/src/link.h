@@ -22,6 +22,7 @@ String      linkAddress();                     // IP or Bluetooth MAC
 int         linkRssi();                        // WiFi RSSI (0 in Bluetooth mode)
 bool        linkTimeFromNetwork();             // WiFi: NTP time arrived
 void        linkForgetWifi();                  // erase saved WiFi credentials
+void        linkRequestWifiSetup();            // next start in WiFi mode opens the setup portal
 void        linkShutdown();                    // before restart / deep sleep
 
 // shared by the two radios (link.cpp)
@@ -33,4 +34,4 @@ void bleBegin();   void bleService();   void bleSend(const char*);  int bleClien
 void bleStop();    LinkState bleState(); String bleAddress();
 void wifiBegin();  void wifiService();  void wifiSend(const char*); int wifiClients();
 void wifiStop();   LinkState wifiState(); String wifiAddress(); int wifiRssi();
-bool wifiTimeSynced(); void wifiForget();
+bool wifiTimeSynced(); void wifiForget(); void wifiRequestSetup();

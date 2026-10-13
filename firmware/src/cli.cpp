@@ -53,6 +53,8 @@ static void help() {
         "press 1|2 [ms]         press a button in software\n"
         "state                  the JSON the app receives\n"
         "app <json>             handle one message as if the app sent it\n"
+        "echo <text>            print <text> (the PC tool uses it to see a reply is complete)\n"
+        "wifi setup             change WiFi: restart into the setup portal (keeps the old one)\n"
         "wifi forget            erase the saved WiFi network\n"
         "off                    power off (battery build)\n"
         "reboot\n\n");
@@ -74,6 +76,12 @@ static void status() {
     Serial.printf("notifs   %d, %d unread\n", appNotifs().count(), appUnread());
     if (FEATURE_BATTERY) Serial.printf("battery  %d %%, %d mV (raw %d mV)\n", batteryPercent(), batteryMv(), batteryRawMv());
     Serial.printf("memory   %u free, lowest %u\n", (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+    uint32_t loopUs, frameUs, sendUs, sendMaxUs;
+    loopStats(&loopUs, &frameUs);
+    oledSendStats(&sendUs, &sendMaxUs);
+    Serial.printf("timing   longest loop %lu ms, frame %lu ms, OLED send %lu ms (max %lu) since last status\n",
+                  (unsigned long)(loopUs / 1000), (unsigned long)(frameUs / 1000),
+                  (unsigned long)(sendUs / 1000), (unsigned long)(sendMaxUs / 1000));
     Serial.printf("uptime   %lu s, last reset: %s\n\n", (unsigned long)(millis() / 1000), resetReason());
 }
 
@@ -146,6 +154,9 @@ void cliRun(const char* in) {
         else Serial.println("test oled|leds|buzzer|buttons|battery");
     }
     else if (!strcmp(cmd, "wifi") && !strcmp(a1, "forget")) { linkForgetWifi(); Serial.println("WiFi forgotten: the setup portal opens next time in WiFi mode"); }
+    else if (!strcmp(cmd, "wifi") && !strcmp(a1, "setup")) appWifiSetup();
+    else if (!strcmp(cmd, "wifi")) Serial.println("wifi setup|forget");
+    else if (!strcmp(cmd, "echo")) Serial.println(rest);   // the PC tool's "reply complete" marker
     else if (!strcmp(cmd, "off")) { if (!appPowerOff("serial")) Serial.println("power off needs the battery build (env c3-battery)"); }
     else if (!strcmp(cmd, "reboot")) { linkShutdown(); delay(100); ESP.restart(); }
     else Serial.printf("unknown command '%s' (type help)\n", cmd);

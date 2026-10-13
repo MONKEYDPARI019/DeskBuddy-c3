@@ -28,6 +28,7 @@ void appClearNotifs();
 void appSetClock(long long epoch, const char* tzPosix, bool hasTzMin, int tzMin);
 void appSettingsChanged();                   // re-apply brightness etc.
 void appSwitchLink(uint8_t mode);            // saves, tells the app, restarts
+void appWifiSetup();                         // WiFi mode + setup portal (change network), restarts
 bool appPowerOff(const char* reason);        // false if this build has no power switch
 void appMessage(const char* title, const char* sub, uint32_t ms = 2000);
 void appActivity();                          // any user input: wake Mochi, reset timers

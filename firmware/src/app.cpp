@@ -284,6 +284,16 @@ void appSwitchLink(uint8_t mode) {
     restartAt = millis() + 1500;                  // let the "link_switch" reply reach the app
 }
 
+void appWifiSetup() {
+    settings.link = LINK_WIFI;
+    settingsSave();
+    linkRequestWifiSetup();
+    Serial.printf("[App] change WiFi: restarting into the setup portal '%s'\n", SETUP_AP);
+    appMessage("Change WiFi", "join " SETUP_AP, 5000);
+    buzzerPlay(Sound::Screen, true);
+    restartAt = millis() + 1500;                  // let the reply reach the app
+}
+
 bool appPowerOff(const char* reason) {
     if (!powerSupported()) return false;
     linkShutdown();
