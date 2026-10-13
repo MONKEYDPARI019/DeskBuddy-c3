@@ -34,4 +34,4 @@ void bleBegin();   void bleService();   void bleSend(const char*);  int bleClien
 void bleStop();    LinkState bleState(); String bleAddress();
 void wifiBegin();  void wifiService();  void wifiSend(const char*); int wifiClients();
 void wifiStop();   LinkState wifiState(); String wifiAddress(); int wifiRssi();
-bool wifiTimeSynced(); void wifiForget(); void wifiRequestSetup();
+bool wifiTimeSynced(); void wifiForget(); void wifiRequestSetup(); void wifiClearSetupRequest();

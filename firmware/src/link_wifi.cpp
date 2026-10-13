@@ -35,6 +35,7 @@ constexpr uint32_t SETUP_MAGIC = 0x5E7F1A61;
 RTC_NOINIT_ATTR static uint32_t setupRequest;
 
 void wifiRequestSetup() { setupRequest = SETUP_MAGIC; }
+void wifiClearSetupRequest() { setupRequest = 0; }
 
 static void onWs(uint8_t num, WStype_t type, uint8_t* payload, size_t len) {
     switch (type) {
@@ -151,6 +152,7 @@ void wifiBegin() {
         // With a saved network the portal closes after 3 min and that network is used again.
         setupRequest = 0;
         Serial.println("[WiFi] change WiFi: opening the setup portal");
+        WiFi.disconnect(false, false);         // stay off the old network (it stays saved) while the portal is open
         openPortal();
     } else if (wm->getWiFiIsSaved()) {
         WiFi.begin();                          // saved network, in the background

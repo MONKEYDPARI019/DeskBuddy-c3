@@ -109,6 +109,7 @@ object DeskBuddyClient {
     @Synchronized
     fun disconnect() {
         wanted = false
+        pending.drain(0)                  // STOP: nothing queued may pop up on a later connect
         handler.removeCallbacksAndMessages(null)
         ws?.close(1000, "bye")
         ws = null
@@ -186,6 +187,8 @@ object DeskBuddyClient {
     /** Notifications are prepared and sent here, never on the main thread. */
     private val notifExecutor = Executors.newSingleThreadExecutor()
     private val pending = PendingNotifs<Notif>()
+    @Volatile private var lastKick = 0L
+    private const val KICK_MIN_INTERVAL_MS = 5_000L
 
     /** Hindi, Cyrillic, ... -> Latin letters the OLED can draw (Android 10+; built lazily, it is slow). */
     private val transliterator: ((String) -> String)? by lazy {
@@ -210,7 +213,7 @@ object DeskBuddyClient {
             )
             if (!connected || !sendNotif(n)) {
                 pending.add(n, System.currentTimeMillis())
-                kick()
+                kick()                      // rate-limited: a burst of notifications is one kick
             }
         }
     }
@@ -222,7 +225,10 @@ object DeskBuddyClient {
     }
 
     private fun flushPending() = notifExecutor.execute {
-        pending.drain(System.currentTimeMillis()).forEach { sendNotif(it) }
+        val now = System.currentTimeMillis()
+        for (n in pending.drain(now)) {
+            if (!sendNotif(n)) pending.add(n, now)   // link dropped again: keep it for the next connect
+        }
     }
 
     /** C3: restart into WiFi mode with the setup portal open, to join a different network. */
@@ -234,7 +240,13 @@ object DeskBuddyClient {
      */
     fun kick() {
         if (connected) return
-        if (transport == "ble") { ble?.kick(); return }
+        // Screen-on, WiFi and Bluetooth events and bursts of notifications can arrive close
+        // together; restarting the search for each would hit Android's limit of ~5 BLE scans
+        // per 30 s and keep the backoff from ever growing.
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastKick < KICK_MIN_INTERVAL_MS) return
+        lastKick = now
+        if (transport == "ble") { handler.post { ble?.kick() }; return }   // BleLink lives on the main thread
         synchronized(this) {
             if (!wanted) return
             handler.removeCallbacksAndMessages(null)

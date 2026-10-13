@@ -111,6 +111,7 @@ class InstallerWindow:
         self.board_ports: list[ports.BoardPort] = []
         self.custom_file: Optional[Path] = None
         self.busy = False
+        self._ports_generation = 0
         root.title(f"DeskBuddy Installer {__version__}")
         root.minsize(640, 520)
         self._build()
@@ -212,16 +213,21 @@ class InstallerWindow:
 
     def refresh_ports(self) -> None:
         # Listing ports can take a second on Windows: never on the Tk thread
-        threading.Thread(target=self._list_ports, daemon=True).start()
+        self._ports_generation += 1
+        threading.Thread(target=self._list_ports, args=(self._ports_generation,), daemon=True).start()
 
-    def _list_ports(self) -> None:
+    def _list_ports(self, generation: int) -> None:
         try:
             found = ports.list_ports()
-        except Exception:  # a broken driver must not kill the window
+        except Exception as exc:  # a broken driver must not kill the window
+            self.events.put(Event("monitor", f"could not list the ports: {exc}"))
             found = []
-        self.events.put(Event("ports", found))
+        self.events.put(Event("ports", (generation, found)))
 
-    def _show_ports(self, found: list[ports.BoardPort]) -> None:
+    def _show_ports(self, value: tuple[int, list[ports.BoardPort]]) -> None:
+        generation, found = value
+        if generation != self._ports_generation:
+            return  # Refresh was pressed again: a newer list is on its way
         previous = self._selected_port()
         boards = ports.board_candidates(found)
         self.board_ports = boards or found

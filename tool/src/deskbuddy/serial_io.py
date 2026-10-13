@@ -108,12 +108,20 @@ def read_until_idle(
 
 
 def _end_of_reply(buf: bytes) -> Optional[int]:
-    """Where the end-marker line starts in `buf` (None until a complete marker line has arrived)."""
-    for marker in _END_LINES:
-        pos = buf.find(marker)
-        if pos >= 0 and b"\n" in buf[pos:]:
-            return buf.rfind(b"\n", 0, pos) + 1
-    return None
+    """Where the end-marker line starts in `buf` (None until a complete marker line has arrived).
+
+    Only a whole line counts: the marker text inside other output (a notification, a log line)
+    must not end the reply early.
+    """
+    start = 0
+    while True:
+        nl = buf.find(b"\n", start)
+        if nl < 0:
+            return None
+        line = buf[start:nl].rstrip(b"\r")
+        if line == _END_LINES[0] or line.startswith(_END_LINES[1]):
+            return start
+        start = nl + 1
 
 
 def read_until_end_marker(

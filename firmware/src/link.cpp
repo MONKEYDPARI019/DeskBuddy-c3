@@ -34,7 +34,8 @@ bool linkReceive(char* buf, size_t n) {
 void linkBegin(uint8_t m) {
     mode = m;
     inboxBegin();
-    if (mode == LINK_WIFI) wifiBegin(); else bleBegin();
+    if (mode == LINK_WIFI) wifiBegin();
+    else { wifiClearSetupRequest(); bleBegin(); }   // a setup request only counts for the next WiFi start
 }
 
 void linkService()            { if (mode == LINK_WIFI) wifiService(); else bleService(); }

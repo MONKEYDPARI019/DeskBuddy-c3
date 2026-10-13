@@ -146,6 +146,13 @@ def test_run_command_end_marker_split_across_reads(clock):
     assert serial_io.run_command("COM9", "x", opener=lambda port: ser, clock=clock) == "hello\r\n"
 
 
+def test_run_command_marker_text_inside_a_line_does_not_end_the_reply(clock):
+    noisy = b"notify said ~deskbuddy-end~ here\r\n"
+    ser = ScriptedSerial([noisy, b"more\r\n" + _end()], clock=clock)
+    reply = serial_io.run_command("COM9", "x", opener=lambda port: ser, clock=clock)
+    assert reply == "notify said ~deskbuddy-end~ here\r\nmore\r\n"
+
+
 def test_run_command_older_firmware_without_echo_still_ends(clock):
     # firmware before 2.3.0 has no 'echo' command: its "unknown command" line marks the end instead
     old_end = b"unknown command 'echo' (type help)\r\n"

@@ -178,7 +178,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         // "Don't allow" twice: Android stops asking, so send the user to the app's settings page
-        val blocked = permissions.any { !shouldShowRequestPermissionRationale(it) }
+        val denied = permissions.filterIndexed { i, _ -> grantResults.getOrNull(i) != PackageManager.PERMISSION_GRANTED }
+        val blocked = denied.any { !shouldShowRequestPermissionRationale(it) }
         if (blocked) {
             toast("Allow 'Nearby devices' for DeskBuddy, then come back")
             startActivity(

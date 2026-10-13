@@ -59,7 +59,9 @@ _ARCH = {"x86_64": "x64", "amd64": "x64", "arm64": "arm64", "aarch64": "arm64"}
 UNUSED_DATA = ("_tcl_data/tzdata/", "_tcl_data/msgs/", "_tk_data/msgs/", "_tk_data/images/")
 _SPEC_FILTER = (
     "# build_app.py: leave out Tcl/Tk data the installer window never uses (faster start)\n"
+    "_count = len(a.datas)\n"
     "a.datas = [d for d in a.datas if not d[0].replace('\\\\', '/').startswith({prefixes!r})]\n"
+    "assert len(a.datas) < _count, 'no Tcl/Tk data left out: did PyInstaller rename _tcl_data/_tk_data?'\n"
 )
 
 

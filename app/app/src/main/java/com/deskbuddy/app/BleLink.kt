@@ -54,7 +54,7 @@ class BleLink(
     @Volatile private var rx: BluetoothGattCharacteristic? = null
     @Volatile var ready = false
         private set
-    private var scanning = false
+    @Volatile private var scanning = false
     private var mtu = 23
     private var backoffMs = 2000L
 
@@ -80,7 +80,7 @@ class BleLink(
      */
     @Synchronized
     fun kick() {
-        if (!wanted || ready || gatt != null) return
+        if (!wanted || ready || gatt != null || scanning) return   // already searching or connecting
         handler.removeCallbacksAndMessages(null)
         stopScan()
         backoffMs = 2000L

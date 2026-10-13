@@ -60,7 +60,9 @@ class LinkService : Service(), DeskBuddyClient.Listener {
 
     /** A WiFi network became available (back in range, or the phone switched networks). */
     private val wifiCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) { main.post { DeskBuddyClient.kick() } }
+        override fun onAvailable(network: Network) {
+            if (DeskBuddyClient.transport == "wifi") main.post { DeskBuddyClient.kick() }   // BLE doesn't care
+        }
     }
     private var watching = false
 
