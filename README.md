@@ -2,7 +2,7 @@
 
 **A pocket-sized desk companion.** An ESP32-C3 Super Mini drives a 0.96" OLED with an animated face called **Mochi**, a clock, and your phone's notifications. It has two buttons, two or three status LEDs and a buzzer, and runs from USB or a small LiPo battery. It talks to the DeskBuddy Android app over **Bluetooth** or **WiFi**.
 
-This repo has everything: the firmware, the Android app, and **`deskbuddy`**, a command-line tool and installer window that downloads, flashes and monitors the board. You don't need PlatformIO or the Arduino IDE.
+This repo has everything: the firmware, the Android app, and **`deskbuddy`**, a command-line tool and installer window that downloads, flashes and monitors the board. On Windows the installer window is also a double-click app, **DeskBuddy.exe**. You don't need PlatformIO or the Arduino IDE.
 
 > DeskBuddy C3 is the pocket sibling of [DeskBuddy v2](https://github.com/MONKEYDPARI019/DeskBuddy-v2), the desk version on a full ESP32 with a microphone and speaker. The same app drives both.
 
@@ -15,12 +15,17 @@ This repo has everything: the firmware, the Android app, and **`deskbuddy`**, a 
 - **Notifications:** forwarded from your phone, with a popup, an inbox of the last 8, word-wrapped and auto-scrolling.
 - **Bluetooth or WiFi:** switch between them from the app, the command line, or the buttons.
 - **Battery build:** LiPo charging, battery icon, low-battery warning, auto power-off, and hold-to-switch-on/off.
+- **Double-click app (Windows):** download `DeskBuddy.exe`, open it, click INSTALL. Nothing to install first.
 - **One-command install:** `npm install -g deskbuddy-c3`, then `deskbuddy flash` downloads the latest release, checks it and flashes it.
 - **Installer window:** `deskbuddy ui` gives you install and erase buttons and a live serial monitor.
 
 ## Quick start
 
-You need a DeskBuddy C3 wired up (see [Hardware](docs/hardware.md)), a USB-C data cable and [Node.js](https://nodejs.org) 18 or newer.
+**Easiest, on Windows:** download **[DeskBuddy.exe](https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases/latest/download/DeskBuddy.exe)**, plug the board in, double-click the file and click **INSTALL**. Nothing else to install.
+
+> The first time, Windows may say **"Windows protected your PC"**, because the app isn't code-signed. Click **More info → Run anyway**.
+
+**On any computer, from the command line:** you need a DeskBuddy C3 wired up (see [Hardware](docs/hardware.md)), a USB-C data cable and [Node.js](https://nodejs.org) 18 or newer.
 
 ```bash
 # 1. Install the tool (once)
@@ -51,7 +56,7 @@ New to all of this? The **[Getting started tutorial](docs/getting-started.md)** 
 | [Using DeskBuddy](docs/using-deskbuddy.md) | Screens, buttons, LEDs, moods, sleep, Bluetooth vs WiFi, settings |
 | [Phone app](docs/phone-app.md) | Building, installing and setting up the Android app |
 | [`deskbuddy` command reference](docs/cli.md) | Every command, option, exit code and environment variable |
-| [Installer window](docs/installer-ui.md) | How `deskbuddy ui` works |
+| [Installer window](docs/installer-ui.md) | How `deskbuddy ui` and DeskBuddy.exe work |
 | [Troubleshooting](docs/troubleshooting.md) | Symptoms, causes and fixes, plus every error message |
 | [Development](docs/development.md) | Building from source, code layout, tests, releases |
 | [Protocol](firmware/docs/PROTOCOL.md) | The JSON messages between the app and the board |

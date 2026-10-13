@@ -3,6 +3,31 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.2.0] - 2026-10-13
+
+### Double-click app for Windows
+- New release file **`DeskBuddy.exe`**: download it, double-click it and the installer window opens (INSTALL, Erase chip,
+  serial monitor). No Node.js, Python or install step. It is one windowed file with the DeskBuddy icon, built and tested
+  on Windows by `app.yml` and listed in `SHA256SUMS`.
+- `https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases/latest/download/DeskBuddy.exe` always points to the newest one.
+- Not code-signed: the first time, Windows SmartScreen asks; click **More info → Run anyway**.
+
+### Android app 0.3.0
+- The "DeskBuddy" link notification now has a **Stop** button (same as STOP in the app).
+- Searching stops by itself after 10 minutes without finding DeskBuddy. A swipe-away "DeskBuddy not found" notification
+  offers **Search again**.
+- New Setup option **Stay connected when app is closed** (on by default). Off: swiping the app away disconnects, and
+  opening it reconnects.
+- Opening the app reconnects automatically while LINK is on.
+- Fixed: a late status update could bring the link notification back after STOP.
+
+### `deskbuddy` tool 2.2.0
+- Windows app: DeskBuddy icon on the window and taskbar, and sharp text on scaled (125 %, 150 %) screens.
+- `scripts/build_app.py --gui` builds the double-click app.
+
+### Firmware (c3-2.2.0)
+- No functional changes; the version follows the project version.
+
 ## [2.1.0] - 2026-10-11
 
 ### Install with npm

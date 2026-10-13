@@ -8,8 +8,10 @@ own queue, so the serial port is only ever touched by one thread at a time.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import queue
+import sys
 import threading
 import tkinter as tk
 from dataclasses import dataclass
@@ -411,7 +413,21 @@ class InstallerWindow:
         self.root.destroy()
 
 
-def main() -> None:
+def _set_icon(root: tk.Tk) -> None:
+    """DeskBuddy icon on the window and taskbar in the ready-made Windows app (bundled .ico)."""
+    base = getattr(sys, "_MEIPASS", None)
+    if not base or sys.platform != "win32":
+        return
+    ico = Path(base) / "deskbuddy.ico"
+    if ico.is_file():
+        with contextlib.suppress(tk.TclError):  # only cosmetic
+            root.iconbitmap(default=str(ico))
+
+
+def main(quit_after_ms: Optional[int] = None) -> None:
     root = tk.Tk()
-    InstallerWindow(root)
+    _set_icon(root)
+    window = InstallerWindow(root)
+    if quit_after_ms is not None:  # self-test of the ready-made app: open, run briefly, close
+        root.after(quit_after_ms, window._close)
     root.mainloop()

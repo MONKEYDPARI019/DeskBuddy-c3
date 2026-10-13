@@ -68,7 +68,7 @@ jobs:
           path: dist/
 
   program:
-    # the ready-made deskbuddy program for each OS (what the npm package downloads)
+    # the ready-made deskbuddy program for each OS (what the npm package downloads) and DeskBuddy.exe
     uses: ./.github/workflows/app.yml
 
   publish:
@@ -90,7 +90,7 @@ jobs:
         run: |
           shopt -s nullglob
           cd dist
-          sha256sum *.bin *.tar.gz *.apk > SHA256SUMS
+          sha256sum *.bin *.tar.gz *.exe *.apk > SHA256SUMS
           cat SHA256SUMS
       - name: Create GitHub Release
         env:
@@ -101,7 +101,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "DeskBuddy C3 $GITHUB_REF_NAME" \
             --notes-file dist/RELEASE_NOTES.md \
-            dist/*.bin dist/*.tar.gz dist/SHA256SUMS dist/manifest.json dist/*.apk
+            dist/*.bin dist/*.tar.gz dist/*.exe dist/SHA256SUMS dist/manifest.json dist/*.apk
 
   npm:
     # Publishes npm/ as deskbuddy-c3 with npm trusted publishing (no token stored anywhere).

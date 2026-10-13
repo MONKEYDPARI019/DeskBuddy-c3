@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
-"""Build the ready-made `deskbuddy` program (no Python needed) for the npm package.
+"""Build the ready-made DeskBuddy programs (no Python needed).
 
-    python scripts/build_app.py [<out_dir>]          (default out_dir: dist)
+    python scripts/build_app.py [<out_dir>]          the `deskbuddy` command for the npm package
+    python scripts/build_app.py --gui [<out_dir>]    the double-click app, DeskBuddy.exe
 
-Runs PyInstaller on this machine's OS, checks that the program starts and can run esptool,
-then packs it as <out_dir>/deskbuddy-<version>-<platform>.tar.gz with one top-level folder,
-`deskbuddy/`. <platform> is win32-x64, linux-x64, linux-arm64, darwin-arm64 or darwin-x64, the
-same names the npm launcher (npm/lib/launcher.js) asks for.
+Default out_dir: dist. Both run PyInstaller on this machine's OS and check the result before
+writing it to out_dir:
+
+- `deskbuddy` (console, one folder): must start and run esptool from inside itself, then it is
+  packed as deskbuddy-<version>-<platform>.tar.gz with one top-level folder, `deskbuddy/`.
+  <platform> is win32-x64, linux-x64, linux-arm64, darwin-arm64 or darwin-x64, the same names
+  the npm launcher (npm/lib/launcher.js) asks for.
+- `DeskBuddy.exe` (windowed, one file, DeskBuddy icon): must report its version through a pipe,
+  run esptool from inside itself, start itself as esptool and read its output the way INSTALL
+  does, and open the installer window for a few seconds (`--self-test`). On Linux the same
+  build is written as DeskBuddy-<platform> (for testing; needs a display, e.g. xvfb-run).
 
 Needs: the tool installed (pip install ./tool) and pyinstaller.
 """
 
 from __future__ import annotations
 
+import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -22,7 +32,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TOOL = ROOT / "tool"
+PACKAGING = TOOL / "packaging"
+ICON = PACKAGING / "deskbuddy.ico"
 BUILD = ROOT / "build" / "app"
+GUI_NAME = "DeskBuddy"
+
+# esptool loads its flasher stubs from data files and finds commands by module; pyserial opens
+# rfc2217:// / socket:// ports through modules it imports by name
+BUNDLE_ARGS = [
+    "--collect-data",
+    "esptool",
+    "--collect-submodules",
+    "esptool",
+    "--copy-metadata",
+    "esptool",
+    "--copy-metadata",
+    "pyserial",
+    "--collect-submodules",
+    "serial",
+]
 _ARCH = {"x86_64": "x64", "amd64": "x64", "arm64": "arm64", "aarch64": "arm64"}
 
 
@@ -59,19 +87,8 @@ def run_pyinstaller() -> Path:
         str(BUILD / "work"),
         "--specpath",
         str(BUILD),
-        # esptool loads its flasher stubs from data files and finds commands by module
-        "--collect-data",
-        "esptool",
-        "--collect-submodules",
-        "esptool",
-        "--copy-metadata",
-        "esptool",
-        "--copy-metadata",
-        "pyserial",
-        # pyserial opens rfc2217:// / socket:// ports through modules it imports by name
-        "--collect-submodules",
-        "serial",
-        str(TOOL / "packaging" / "entry.py"),
+        *BUNDLE_ARGS,
+        str(PACKAGING / "entry.py"),
     ]
     print("==> " + " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True)
@@ -94,6 +111,85 @@ def smoke_test(exe: Path, version: str) -> None:
     print(f"==> bundled esptool: {text.strip().splitlines()[-1]}", flush=True)
 
 
+def version_file(version: str) -> Path:
+    """Windows file properties (Details tab) for DeskBuddy.exe."""
+    numbers = [int(part) for part in re.findall(r"\d+", version)[:3]]
+    numbers += [0] * (4 - len(numbers))
+    fixed = tuple(numbers)
+    strings = {
+        "CompanyName": "DeskBuddy",
+        "FileDescription": "DeskBuddy Installer",
+        "FileVersion": version,
+        "InternalName": GUI_NAME,
+        "LegalCopyright": "MIT License",
+        "OriginalFilename": f"{GUI_NAME}.exe",
+        "ProductName": "DeskBuddy",
+        "ProductVersion": version,
+    }
+    table = ", ".join(f"StringStruct({key!r}, {value!r})" for key, value in strings.items())
+    text = (
+        "VSVersionInfo(\n"
+        f"  ffi=FixedFileInfo(filevers={fixed}, prodvers={fixed}, mask=0x3f, flags=0x0, OS=0x40004,\n"
+        "                    fileType=0x1, subtype=0x0, date=(0, 0)),\n"
+        f"  kids=[StringFileInfo([StringTable('040904B0', [{table}])]),\n"
+        "        VarFileInfo([VarStruct('Translation', [1033, 1200])])]\n"
+        ")\n"
+    )
+    BUILD.mkdir(parents=True, exist_ok=True)
+    path = BUILD / "version_info.txt"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def run_pyinstaller_gui(version: str) -> Path:
+    """One windowed file with the installer window; esptool runs inside it like in the console build."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "PyInstaller",
+        "--noconfirm",
+        "--clean",
+        "--onefile",
+        "--windowed",
+        "--name",
+        GUI_NAME,
+        "--icon",
+        str(ICON),
+        "--add-data",
+        f"{ICON}{os.pathsep}.",  # window and taskbar icon, see deskbuddy.ui._set_icon
+        "--distpath",
+        str(BUILD / "dist-gui"),
+        "--workpath",
+        str(BUILD / "work-gui"),
+        "--specpath",
+        str(BUILD),
+    ]
+    if sys.platform == "win32":
+        cmd += ["--version-file", str(version_file(version))]
+    cmd += [*BUNDLE_ARGS, str(PACKAGING / "gui_entry.py")]
+    print("==> " + " ".join(cmd), flush=True)
+    subprocess.run(cmd, check=True)
+    exe = BUILD / "dist-gui" / (f"{GUI_NAME}.exe" if sys.platform == "win32" else GUI_NAME)
+    if not exe.is_file():
+        raise SystemExit(f"error: PyInstaller did not produce {exe}")
+    return exe
+
+
+def smoke_test_gui(exe: Path, version: str) -> None:
+    """Version through a pipe (the same path esptool output takes), esptool inside it, the window."""
+    checks = [
+        (["--version"], lambda text: f"DeskBuddy {version}" in text),
+        (["--run-esptool", "version"], lambda text: re.search(r"\d+\.\d+", text) is not None),
+        (["--self-test"], lambda text: "esptool child:" in text and "self-test ok" in text),
+    ]
+    for args, ok in checks:
+        out = subprocess.run([str(exe), *args], capture_output=True, text=True, timeout=300)
+        text = out.stdout + out.stderr
+        if out.returncode != 0 or not ok(text):
+            raise SystemExit(f"error: '{exe.name} {' '.join(args)}' failed (exit {out.returncode}):\n{text}")
+        print(f"==> {exe.name} {' '.join(args)}: {text.strip().splitlines()[-1]}", flush=True)
+
+
 def pack(folder: Path, out_dir: Path, version: str) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     archive = out_dir / f"deskbuddy-{version}-{platform_key()}.tar.gz"
@@ -106,8 +202,19 @@ def main(argv: list[str]) -> int:
     if argv[:1] in (["-h"], ["--help"]):
         print(__doc__)
         return 0
-    out_dir = Path(argv[0] if argv else "dist").resolve()
+    gui = "--gui" in argv
+    rest = [arg for arg in argv if arg != "--gui"]
+    out_dir = Path(rest[0] if rest else "dist").resolve()
     version = tool_version()
+    if gui:
+        exe = run_pyinstaller_gui(version)
+        smoke_test_gui(exe, version)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        name = exe.name if sys.platform == "win32" else f"{GUI_NAME}-{platform_key()}"
+        target = out_dir / name
+        shutil.copy2(exe, target)
+        print(f"==> {target}  ({target.stat().st_size:,} bytes)", flush=True)
+        return 0
     exe = run_pyinstaller()
     smoke_test(exe, version)
     archive = pack(exe.parent, out_dir, version)

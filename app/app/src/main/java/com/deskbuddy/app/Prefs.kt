@@ -40,6 +40,15 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("link_on", false)
         set(v) = sp.edit().putBoolean("link_on", v).apply()
 
+    /**
+     * Keep the link running after the app is swiped away (needed to forward
+     * notifications in the background). Off: closing the app disconnects, and
+     * opening it again reconnects.
+     */
+    var keepInBackground: Boolean
+        get() = sp.getBoolean("keep_bg", true)
+        set(v) = sp.edit().putBoolean("keep_bg", v).apply()
+
     /** Forward phone notifications to DeskBuddy. */
     var forwardNotifications: Boolean
         get() = sp.getBoolean("forward", true)

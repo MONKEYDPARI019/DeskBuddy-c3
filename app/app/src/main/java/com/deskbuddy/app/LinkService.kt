@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -17,29 +18,85 @@ import org.json.JSONObject
 /**
  * Foreground service that keeps the DeskBuddy connection (and voice loop)
  * running while the app is in the background.
+ *
+ * It never searches forever:
+ *  - the notification has a STOP button (same as STOP in the app);
+ *  - if DeskBuddy cannot be found for [GIVE_UP_MS], the service stops and leaves
+ *    a normal, swipe-away notification "DeskBuddy not found" (tap: search again);
+ *  - with "Stay connected when app is closed" off, swiping the app away stops it.
+ * Opening the app reconnects while LINK is on (MainActivity).
  */
 class LinkService : Service(), DeskBuddyClient.Listener {
     private var voice: VoiceLoop? = null
     private val main = Handler(Looper.getMainLooper())
 
+    /** True while shutting down: late status callbacks must not re-post the notification. */
+    private var stopping = false
+    private val giveUp = Runnable { giveUpSearching() }
+    private var giveUpPending = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            DeskBuddyClient.disconnect()
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            // STOP from the notification or the app: stay off until the user taps LINK again
+            Prefs(this).linkOn = false
+            shutdown()
             return START_NOT_STICKY
         }
+        // a fresh start (LINK, app opened, or "search again" from the not-found notification)
+        stopping = false
+        notificationManager().cancel(NOT_FOUND_ID)
         startForegroundCompat("Connecting…")
+        running = true
 
         val prefs = Prefs(this)
+        prefs.linkOn = true
         if (voice == null) {
             voice = VoiceLoop(this, prefs).also { DeskBuddyClient.addListener(it) }
             DeskBuddyClient.addListener(this)
         }
         connectFromPrefs(prefs)
+        scheduleGiveUp()
         return START_STICKY
+    }
+
+    /** The user swiped the app away from the recent apps list. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (!Prefs(this).keepInBackground) shutdown()   // LINK stays on: opening the app reconnects
+        super.onTaskRemoved(rootIntent)
+    }
+
+    /** Stop searching/connecting, remove the notification and end the service. */
+    private fun shutdown() {
+        stopping = true
+        running = false
+        cancelGiveUp()
+        main.removeCallbacksAndMessages(null)
+        discovery?.stop()
+        DeskBuddyClient.disconnect()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        notificationManager().cancel(NOTIF_ID)
+        stopSelf()
+    }
+
+    /** Not found for a long time: stop draining the battery, leave a tap-to-retry note. */
+    private fun giveUpSearching() {
+        giveUpPending = false
+        if (DeskBuddyClient.connected || stopping) return
+        shutdown()
+        notificationManager().notify(NOT_FOUND_ID, buildNotFoundNotification())
+    }
+
+    private fun scheduleGiveUp() {
+        if (giveUpPending || DeskBuddyClient.connected) return
+        giveUpPending = true
+        main.postDelayed(giveUp, GIVE_UP_MS)
+    }
+
+    private fun cancelGiveUp() {
+        giveUpPending = false
+        main.removeCallbacks(giveUp)
     }
 
     private var discovery: Discovery? = null
@@ -91,17 +148,27 @@ class LinkService : Service(), DeskBuddyClient.Listener {
     }
 
     override fun onStatus(connected: Boolean, text: String) {
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIF_ID, buildNotification(text))
+        // status callbacks arrive on background threads; handle them on the main thread
+        main.post {
+            if (stopping) return@post               // shutting down: don't bring the notification back
+            if (connected) cancelGiveUp() else scheduleGiveUp()
+            notificationManager().notify(NOTIF_ID, buildNotification(text))
+        }
     }
 
     override fun onDestroy() {
+        stopping = true
+        running = false
+        cancelGiveUp()
         voice?.let { DeskBuddyClient.removeListener(it); it.shutdown() }
         DeskBuddyClient.removeListener(this)
         voice = null
         discovery?.stop()
+        notificationManager().cancel(NOTIF_ID)
         super.onDestroy()
     }
+
+    private fun notificationManager() = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     private fun startForegroundCompat(text: String) {
         val n = buildNotification(text)
@@ -112,27 +179,71 @@ class LinkService : Service(), DeskBuddyClient.Listener {
         }
     }
 
-    private fun buildNotification(text: String): Notification {
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private fun ensureChannel() {
+        val nm = notificationManager()
         if (nm.getNotificationChannel(CHANNEL) == null) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "DeskBuddy link", NotificationManager.IMPORTANCE_LOW))
         }
-        val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+    }
+
+    private fun openAppIntent(): PendingIntent = PendingIntent.getActivity(
+        this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun buildNotification(text: String): Notification {
+        ensureChannel()
+        val stop = PendingIntent.getService(
+            this, 1, Intent(this, LinkService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+        val stopAction = Notification.Action.Builder(
+            Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel), "Stop", stop
+        ).build()
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentTitle("DeskBuddy")
             .setContentText(text)
-            .setContentIntent(open)
+            .setContentIntent(openAppIntent())
+            .addAction(stopAction)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
+    }
+
+    /** Shown after giving up: can be swiped away; tap or "Search again" reconnects. */
+    private fun buildNotFoundNotification(): Notification {
+        ensureChannel()
+        val retry = PendingIntent.getForegroundService(
+            this, 2, Intent(this, LinkService::class.java).setAction(ACTION_RETRY),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val retryAction = Notification.Action.Builder(
+            Icon.createWithResource(this, android.R.drawable.ic_popup_sync), "Search again", retry
+        ).build()
+        val minutes = GIVE_UP_MS / 60_000
+        return Notification.Builder(this, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+            .setContentTitle("DeskBuddy not found")
+            .setContentText("Stopped searching after $minutes min to save battery. Tap to search again.")
+            .setContentIntent(openAppIntent())
+            .addAction(retryAction)
+            .setAutoCancel(true)
             .build()
     }
 
     companion object {
         const val ACTION_STOP = "com.deskbuddy.app.STOP"
+        const val ACTION_RETRY = "com.deskbuddy.app.RETRY"
         private const val CHANNEL = "link"
         private const val NOTIF_ID = 1
+        private const val NOT_FOUND_ID = 2
+
+        /** Stop searching if DeskBuddy can't be found for this long. */
+        private const val GIVE_UP_MS = 10 * 60_000L
+
+        /** True while the service is running (MainActivity reconnects on resume when it isn't). */
+        @Volatile var running = false
+            private set
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, LinkService::class.java))

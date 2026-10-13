@@ -6,6 +6,19 @@ When asking for help, attach a log: `deskbuddy monitor --log log.txt` (or **Save
 
 ---
 
+## DeskBuddy.exe (Windows app)
+
+### "Windows protected your PC"
+SmartScreen warns about apps that aren't code-signed. DeskBuddy.exe isn't (a certificate costs money every year). Click **More info → Run anyway**; Windows remembers it for that file.
+
+### It opens slowly, or the antivirus quarantines it
+The single file unpacks itself each time it starts, which takes a few seconds. Some antivirus tools flag one-file Python apps by mistake. Compare the file with `SHA256SUMS` from the same release (`Get-FileHash DeskBuddy.exe` in PowerShell); if it matches, allow it in the antivirus.
+
+### The window never appears
+Look in `%USERPROFILE%\.deskbuddy\logs\app.log`. You can always use the command-line tool instead: `npm install -g deskbuddy-c3`, then `deskbuddy ui`.
+
+---
+
 ## Installing the tool (npm)
 
 ### PowerShell: "running scripts is disabled on this system"

@@ -11,6 +11,8 @@ The app isn't in the releases yet, so you build it yourself once with Android St
 3. On your phone, enable **Developer options → USB debugging**, and connect it with USB.
 4. Choose your phone in the device list and click **Run ▶**. The app installs and opens.
 
+**Updating:** get the new code (`git pull`, or the files you were sent), open the `app` folder in Android Studio again, connect the phone and click **Run ▶**. It installs over the old version and keeps your settings. Build it on the same PC each time: an app built on another PC has a different signature, and Android then asks you to uninstall the old one first.
+
 ## Permissions
 
 | Permission | Why |

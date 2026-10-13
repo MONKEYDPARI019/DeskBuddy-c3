@@ -44,6 +44,9 @@ class MainActivity : ComponentActivity() {
             override var echo: Boolean
                 get() = prefs.echoVoice
                 set(v) { prefs.echoVoice = v }
+            override var keepInBackground: Boolean
+                get() = prefs.keepInBackground
+                set(v) { prefs.keepInBackground = v }
 
             override fun link(host: String, port: Int) {
                 if (prefs.model == "c3") prefs.c3Host = host else prefs.host = host
@@ -110,12 +113,26 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         AppState.notifAccess = notificationAccessGranted()
+        // LINK is on but the service stopped (app was swiped away with "stay connected" off,
+        // or it gave up searching): reconnect now that the user is back in the app
+        if (prefs.linkOn && !LinkService.running) {
+            if (!prefs.useBle || hasBlePermissions()) LinkService.start(this)
+        }
     }
 
     override fun onDestroy() {
         discovery.stop()
         tts.shutdown()
         super.onDestroy()
+    }
+
+    private fun hasBlePermissions(): Boolean {
+        val needed = if (Build.VERSION.SDK_INT >= 31) {
+            arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        return needed.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
     }
 
     /** Bluetooth permissions: SCAN + CONNECT on Android 12+, location before that. */

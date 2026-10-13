@@ -9,6 +9,8 @@ This tutorial takes you from a wired-up DeskBuddy C3 to Mochi showing your phone
 - a PC with internet.
 - an Android phone, if you want the app.
 
+> **Only want to install the firmware, on Windows?** Download **[DeskBuddy.exe](https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases/latest/download/DeskBuddy.exe)**, plug the board in, double-click the file and click **INSTALL** (see [Installer window](installer-ui.md)). Then continue at the phone app. The steps below install the full command-line tool instead, which works on Windows, Linux and macOS.
+
 ---
 
 ## Step 1: Install Node.js
@@ -43,7 +45,7 @@ The first `deskbuddy` command then downloads the ready-made program for your com
 deskbuddy --version
 ```
 
-It should print `deskbuddy 2.1.0` (or newer).
+It should print `deskbuddy 2.2.0` (or newer).
 
 > **PowerShell says "running scripts is disabled on this system"?** Windows blocks npm's PowerShell launchers by default. Run this once, then try again:
 >

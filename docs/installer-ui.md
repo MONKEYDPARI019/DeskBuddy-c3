@@ -1,10 +1,13 @@
 # Installer window
 
-`deskbuddy ui` opens a small window for installing firmware and watching the serial output, for when you'd rather click than type. It does exactly what `deskbuddy flash` and `deskbuddy monitor` do.
+A small window for installing firmware and watching the serial output, for when you'd rather click than type. It does exactly what `deskbuddy flash` and `deskbuddy monitor` do. Open it either way:
 
-```bash
-deskbuddy ui
-```
+- **Windows, nothing installed:** download **[DeskBuddy.exe](https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases/latest/download/DeskBuddy.exe)** from the latest release and double-click it.
+- **With the `deskbuddy` tool (any OS):**
+
+  ```bash
+  deskbuddy ui
+  ```
 
 ```
 ┌ DeskBuddy Installer ──────────────────────────────────────────────┐
@@ -81,3 +84,14 @@ After erasing, the chip waits in download mode, so its USB port stays steady. If
 Close other serial monitors (PlatformIO, Arduino IDE, a `deskbuddy monitor` in a terminal) before using the window, because only one program can use the port at a time.
 
 **On Linux**, if `deskbuddy ui` says Tkinter is missing: `sudo apt install python3-tk` (Fedora: `sudo dnf install python3-tkinter`).
+
+## DeskBuddy.exe (Windows)
+
+The double-click app is the same window packed into one file with its own Python, esptool and Tk, like the program the npm package uses.
+
+- **Download:** [`DeskBuddy.exe`](https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases/latest/download/DeskBuddy.exe) always points to the newest release. Older versions are on the [releases page](https://github.com/MONKEYDPARI019/DeskBuddy-C3/releases); `SHA256SUMS` in each release lists its checksum.
+- **"Windows protected your PC":** the app isn't code-signed (a certificate costs money every year), so SmartScreen warns the first time. Click **More info → Run anyway**.
+- **It takes a few seconds to open:** the single file unpacks itself into a temporary folder each time it starts. Your antivirus may scan it the first time.
+- **Nothing happens / it closes at once:** look in `%USERPROFILE%\.deskbuddy\logs\app.log`; a window that can't start shows the reason in a message box.
+- **Not in the app:** building firmware from source. That needs the pip version of the tool (`deskbuddy build`).
+

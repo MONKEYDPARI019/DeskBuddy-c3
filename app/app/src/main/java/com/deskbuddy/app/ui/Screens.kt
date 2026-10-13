@@ -45,6 +45,7 @@ interface Actions {
     val port: Int
     var forward: Boolean
     var echo: Boolean
+    var keepInBackground: Boolean        // keep the link alive after the app is swiped away
     fun link(host: String, port: Int)
     fun stop()
     fun find(onFound: (String, Int) -> Unit)
@@ -378,6 +379,7 @@ fun SetupScreen(actions: Actions) {
     var port by remember { mutableStateOf(actions.port.toString()) }
     var city by remember { mutableStateOf(AppState.owmCity) }
     var forward by remember { mutableStateOf(actions.forward) }
+    var keepBg by remember { mutableStateOf(actions.keepInBackground) }
     var note by remember { mutableStateOf("") }
     ScreenColumn {
         ScreenTitle("SETUP")
@@ -401,7 +403,7 @@ fun SetupScreen(actions: Actions) {
                 else "Phone and DeskBuddy on the same WiFi. First time: join 'DeskBuddy_C3_Setup'.",
                 20.sp, c.sub
             )
-            TermText("Stuck? Hold both buttons while switching DeskBuddy on to force WiFi.", 19.sp, c.sub)
+            TermText("Stuck? Hold both buttons on DeskBuddy and tap RESET to switch Bluetooth/WiFi.", 19.sp, c.sub)
         }
         PixelCard("CONNECTION") {
             if (!ble) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -419,6 +421,12 @@ fun SetupScreen(actions: Actions) {
                 PixelButton("STOP", Modifier.weight(1f)) { actions.stop() }
             }
             TermText(if (note.isNotEmpty()) note else AppState.statusText, 20.sp, c.sub)
+            ToggleRow("Stay connected when app is closed", keepBg) { keepBg = it; actions.keepInBackground = it }
+            TermText(
+                if (keepBg) "Needed to forward notifications in the background. STOP (here or in the notification) ends it. Searching stops by itself after 10 min."
+                else "Closing the app disconnects; opening it reconnects. Notifications are only forwarded while the app is open.",
+                19.sp, c.sub
+            )
         }
         PixelCard("DEVICE") {
             val volLevel = (AppState.volume / 10f).roundToInt().coerceIn(0, 10)

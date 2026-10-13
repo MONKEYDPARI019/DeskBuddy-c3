@@ -1,7 +1,8 @@
 name: app
 
-# The ready-made `deskbuddy` program (PyInstaller) that the npm package downloads, plus the npm
-# launcher's own tests. Runs on changes to the tool, and is called by release.yml for every release.
+# The ready-made programs (PyInstaller): the `deskbuddy` command that the npm package downloads,
+# the double-click Windows app DeskBuddy.exe, and the npm launcher's own tests. Runs on changes to
+# the tool, and is called by release.yml for every release.
 
 on:
   push:
@@ -115,4 +116,26 @@ jobs:
         with:
           name: program-${{ matrix.platform }}
           path: dist/deskbuddy-*.tar.gz
+          retention-days: 14
+
+  windows-app:
+    name: double-click app (DeskBuddy.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the tool and PyInstaller
+        run: python -m pip install ./tool "pyinstaller>=6.10,<7"
+      - name: Build and test DeskBuddy.exe
+        # checks: version through a pipe, esptool inside it, INSTALL's way of starting esptool,
+        # and the installer window opening for a few seconds
+        run: python scripts/build_app.py --gui dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: program-windows-app
+          path: dist/DeskBuddy.exe
           retention-days: 14

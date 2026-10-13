@@ -149,6 +149,16 @@ cd npm && npm test
 
 On Windows the program is `build\app\dist\deskbuddy\deskbuddy.exe`; in PowerShell set the variable with `$env:DESKBUDDY_BINARY = "..."`.
 
+### The double-click app (DeskBuddy.exe)
+
+`python scripts/build_app.py --gui dist` builds the installer window as one windowed file with the DeskBuddy icon and Windows version info (`tool/packaging/gui_entry.py` → `frozen.gui_entry`):
+
+- No console means `sys.stdout` starts as `None`. When the window runs esptool, it starts **itself** with `--run-esptool` and reads the child's output through a pipe, so the child re-opens the pipe handles its parent gave it (`_attach_std_streams`). The window's own stray output and Tk errors go to `~/.deskbuddy/logs/app.log`.
+- A window that cannot open shows the reason in a message box instead of vanishing.
+- The build checks three things before writing `dist/DeskBuddy.exe`: `--version` answers through a pipe; `--run-esptool version` works; and `--self-test` runs esptool exactly as INSTALL does (the program starting itself) and then opens the window for 3 seconds.
+
+On Linux the same command writes `dist/DeskBuddy-linux-x64` (useful for testing the window; run it under `xvfb-run` without a display). Only the Windows file is published.
+
 ## CI and releases
 
 **`ci.yml`** (every push and pull request):
@@ -161,13 +171,14 @@ On Windows the program is `build\app\dist\deskbuddy\deskbuddy.exe`; in PowerShel
 - runs the npm launcher's tests on Windows, Linux and macOS with Node 18 and 24, including a check that `npm/package.json`, the tool's `__version__` and `FW_VERSION` agree;
 - builds the ready-made program on Windows x64, Linux x64 and arm64 (Ubuntu 22.04, so it runs on glibc 2.35+) and macOS arm64 and Intel;
 - installs each one end to end through `npm install -g`, with the release files taken from the local `dist/` folder, and runs `deskbuddy --version`;
-- keeps the archives as downloadable workflow artifacts (`program-<platform>`) for 14 days, so you can try a build before releasing it.
+- builds and tests the double-click app `DeskBuddy.exe` on Windows (`program-windows-app`);
+- keeps the archives and `DeskBuddy.exe` as downloadable workflow artifacts (`program-<platform>`, `program-windows-app`) for 14 days, so you can try a build before releasing it.
 
 **`release.yml`** (on a `vX.Y.Z` tag):
 1. Checks that the tag matches `FW_VERSION`, the tool's `__version__` **and** `npm/package.json`.
 2. Builds both firmware envs with `scripts/merge_firmware.py`, and the ready-made programs with `app.yml`.
 3. Takes the release notes from `CHANGELOG.md`.
-4. Publishes the GitHub Release with the firmware images, the program archives, `SHA256SUMS` (covering all of them) and `manifest.json`.
+4. Publishes the GitHub Release with the firmware images, the program archives, `DeskBuddy.exe`, `SHA256SUMS` (covering all of them) and `manifest.json`.
 5. Publishes the npm package, if you switched that on (below).
 
 ### Cutting a release
