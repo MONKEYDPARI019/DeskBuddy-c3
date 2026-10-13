@@ -157,9 +157,10 @@ class InstallerWindow:
         self.erase_btn = ttk.Button(top, text="Erase chip", command=self.erase_chip)
         self.erase_btn.grid(row=3, column=2, sticky="ew", padx=6, pady=8, ipady=6)
         self.progress = ttk.Progressbar(top, maximum=100)
-        self.progress.grid(row=4, column=0, columnspan=2, sticky="ew", **pad)
+        self.progress.grid(row=4, column=0, columnspan=3, sticky="ew", **pad)
         self.status_var = tk.StringVar(value="Ready.")
-        ttk.Label(top, textvariable=self.status_var).grid(row=4, column=2, sticky="w", **pad)
+        # own full-width row: a long status must not widen the button column and squeeze the buttons
+        ttk.Label(top, textvariable=self.status_var).grid(row=5, column=0, columnspan=3, sticky="w", **pad)
         self.hint_var = tk.StringVar()
         self.hint_label = tk.Label(
             top, textvariable=self.hint_var, fg="white", bg=COLOURS["red"], font=("", 11, "bold")
@@ -443,7 +444,7 @@ class InstallerWindow:
             self.progress["value"] = ev.value
         elif ev.kind == "hint":
             self.hint_var.set(f"  {ev.value}  ")
-            self.hint_label.grid(row=5, column=0, columnspan=3, sticky="ew", padx=6, pady=4)
+            self.hint_label.grid(row=6, column=0, columnspan=3, sticky="ew", padx=6, pady=4)
         elif ev.kind == "releases":
             self._show_releases(ev.value)
         elif ev.kind == "ports":
