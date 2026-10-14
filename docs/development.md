@@ -221,6 +221,13 @@ The npm package must only be published **after** its GitHub release exists, beca
 
 The next tag then publishes to npm by itself, after the GitHub release. The job uses Node 24 with the newest npm (trusted publishing needs npm 11.5.1 or newer), sets `repository.url` to the exact GitHub spelling (npm checks it), runs the tests and publishes. npm adds a provenance statement linking the package to the workflow run.
 
+## On-board regression test
+
+With a board on USB and firmware 2.3.0+: `python scripts/board_stress_test.py [--port COM9]`. It clicks BTN1 50 times
+(`stress`) once with nobody reading the USB port and once with a reader, and fails if the main loop ever takes 50 ms
+or more (`status` reports the longest loop). Firmware 2.2.1 took ~23 s here: a 0 ms USB serial timeout made
+`HWCDC::write()` wait forever for a reader (see `SERIAL_TX_TIMEOUT_MS` in `firmware/src/config.h`).
+
 ## Known limitations / ideas
 
 - OTA flashing isn't in the tool yet; use `pio run -e ota -t upload`.

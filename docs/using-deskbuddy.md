@@ -138,6 +138,7 @@ Use them with `deskbuddy monitor` (interactive) or `deskbuddy cmd "<command>"` (
 | `wifi setup` | Change WiFi: restart into the setup portal, keeping the old network as a fallback |
 | `wifi forget` | Erase the saved WiFi network |
 | `echo <text>` | Print `<text>` (the PC tool uses it to see where a reply ends) |
+| `stress <n> [gap ms]` | Click BTN1 n times in software, one every gap ms (default 400): a load test, see `scripts/board_stress_test.py` |
 | `off` | Power off (battery build) |
 | `reboot` | Restart |
 

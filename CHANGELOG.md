@@ -3,7 +3,22 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
-## [2.3.0] - 2026-10-13
+## [2.3.0] - 2026-10-14
+
+### Fixed: the screen could freeze after a few button presses (firmware 2.2.1 and older)
+- **Who is affected:** the released 2.2.1 firmware (and older) on USB power from a PC, with sound on: after a few
+  button presses the screen can freeze, and DeskBuddy stops reacting until a serial monitor is opened or it is
+  restarted. Workaround on 2.2.1: `set silent 1` (it only makes it less likely). **Fixed in this release.**
+- **Cause:** every press writes a few log lines to the USB serial port. When a PC has the port but no program reads it,
+  the board's 256-byte send buffer fills up. With the send timeout set to 0 ms, Arduino-ESP32 3.3.6's
+  `HWCDC::write()` then retries forever (its retry counter starts at 0 and wraps around) instead of giving up, so the
+  whole main loop, screen included, waited for a reader. Measured with the new `stress` command: the longest loop
+  was **23.4 s** for 50 presses with no reader.
+- **Fix:** a 20 ms send timeout. The first write that finds the buffer full waits at most 20 ms, then the firmware
+  treats the PC as not reading and drops log output (instantly) until a monitor reads again. Measured: the longest
+  loop stays at **34 ms** for 60 presses with no reader, and 35 ms with a reader attached.
+- A compile-time check and a host test keep the timeout from ever being 0 again; `scripts/board_stress_test.py`
+  repeats the measurement on a board, and the new serial command `stress <n> [gap ms]` clicks BTN1 in software.
 
 ### New
 - **Change WiFi** while the old network is still in range. Any of these restarts DeskBuddy in WiFi mode with the

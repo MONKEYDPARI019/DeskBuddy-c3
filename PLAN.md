@@ -97,4 +97,15 @@ Docs
 - Reviews (python, kotlin, cpp, security agents): fixed kick() storm + off-main-thread BLE kick,
   flush re-queue, stale port lists, whole-line end marker, spec filter assertion, STA off for the
   setup portal, stale RTC flag; pinned the Gradle distribution sha256 + wrapper validation in CI.
-- Board never plugged in during the session: no hardware tests; checklist given to the owner.
+- 2026-10-13 board plugged in (COM9, was c3-2.2.0, WiFi mode). Real-board results with 2.3.0:
+  - flash #1 (2.2.0 -> 2.3.0, settings kept) OK in 41 s; flash #2 OK in 40 s (18:40:24-18:41:04;
+    buzzer silence must be confirmed by ear: the board can't report it).
+  - status OK; test oled / leds / buzzer OK; face/screen/sound now exit 0 in ~0.4 s (was exit 8).
+  - test buttons untouched for 10 s: no phantom press; press 1/2 (software) click + long work.
+  - OLED send at steady state: clock ~1 ms, Mochi 8-9 ms per frame (was ~30 ms every frame);
+    30 ms only on screen changes and the 10 s full repaint. Longest loop 4-13 ms otherwise.
+  - DeskBuddy.exe Erase chip + INSTALL (local 2.3.0 .bin): both OK; window answered every 50 ms
+    probe within 4 ms during erase and 11 ms during install. One 194-615 ms hitch = Windows'
+    native file dialog opening (Choose .bin), not our code.
+  - Bug found and fixed: a long status message widened the button column (layout jump).
+  - Physical button presses and the buzzer-silence check need the owner (by hand / by ear).

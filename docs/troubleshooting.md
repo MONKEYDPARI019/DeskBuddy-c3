@@ -96,6 +96,12 @@ Firmware 2.3.0 and later ignore short spikes: a press must last 30 ms **and** be
 1. In `deskbuddy monitor`, type `test buttons` and **don't touch anything** for 10 s. Any `BTN1 down` or `BTN2 down` means a wiring problem.
 2. Use **diagonally opposite legs** of each button (see [Hardware](hardware.md#buttons-use-diagonal-legs)), and check for loose jumpers, a bad breadboard hole, or solder touching a neighbouring pin.
 
+### The screen freezes after a few button presses (firmware 2.2.1 and older)
+On USB power from a PC with sound on, firmware 2.2.1 and older could freeze after a few presses when no program was
+reading the USB serial port: the board waited for its log output to be read. Update to 2.3.0 or newer
+(`deskbuddy flash`). On 2.2.1, `set silent 1` makes it less likely, and opening `deskbuddy monitor` unfreezes it.
+To check a board: `python scripts/board_stress_test.py` (needs 2.3.0+).
+
 ### The first button press does nothing
 Mochi was asleep. The screen dims after `sleep_sec` (default 120 s), and the first press only wakes him up. Change the delay with `set sleep_sec 600`, or `set sleep_sec 0` to never sleep.
 
