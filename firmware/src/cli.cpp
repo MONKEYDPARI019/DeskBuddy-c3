@@ -89,16 +89,30 @@ static void status() {
 
 static void printReply(const char* json) { Serial.printf("[reply] %s\n", json); }
 
+// 'test buttons' runs for 10 s from the main loop, so the screen, Mochi and the radio keep
+// going (it used to block everything). Further serial lines wait until it prints "done",
+// so a PC tool that sends a command after it still gets the whole report first.
+static uint32_t btnTestUntil = 0;
+static bool btnTestL1 = false, btnTestL2 = false;
+
 static void testButtons() {
     Serial.println("press BTN1 / BTN2 for 10 s...");
-    bool l1 = false, l2 = false;
-    for (uint32_t end = millis() + 10000; millis() < end; delay(10)) {
-        bool a = buttonDown(1), b = buttonDown(2);
-        if (a != l1) Serial.printf("BTN1 %s\n", a ? "down" : "up");
-        if (b != l2) Serial.printf("BTN2 %s\n", b ? "down" : "up");
-        l1 = a; l2 = b;
+    btnTestL1 = buttonDown(1);
+    btnTestL2 = buttonDown(2);
+    btnTestUntil = millis() + 10000;
+    if (!btnTestUntil) btnTestUntil = 1;
+}
+
+static void btnTestService() {
+    if (!btnTestUntil) return;
+    bool a = buttonDown(1), b = buttonDown(2);
+    if (a != btnTestL1) Serial.printf("BTN1 %s\n", a ? "down" : "up");
+    if (b != btnTestL2) Serial.printf("BTN2 %s\n", b ? "down" : "up");
+    btnTestL1 = a; btnTestL2 = b;
+    if ((int32_t)(millis() - btnTestUntil) >= 0) {
+        btnTestUntil = 0;
+        Serial.println("done");
     }
-    Serial.println("done");
 }
 
 void cliRun(const char* in) {
@@ -181,6 +195,8 @@ static void stressService() {
 
 void cliService() {
     stressService();
+    btnTestService();
+    if (btnTestUntil) return;                  // 'test buttons' running: next commands wait for "done"
     while (Serial.available()) {
         char c = (char)Serial.read();
         if (c == '\r') continue;
@@ -188,6 +204,7 @@ void cliService() {
             line[len] = '\0';
             if (len) cliRun(line);
             len = 0;
+            if (btnTestUntil) return;          // started 'test buttons': leave the rest unread until "done"
         } else if (len < sizeof(line) - 1) {
             line[len++] = c;
         }
