@@ -109,3 +109,12 @@ Docs
     native file dialog opening (Choose .bin), not our code.
   - Bug found and fixed: a long status message widened the button column (layout jump).
   - Physical button presses and the buzzer-silence check need the owner (by hand / by ear).
+  - Owner: no sound during flash #2 (18:40:24-18:41:04) -> buzzer hold fix confirmed.
+- 2026-10-14 owner reported: released 2.2.1 freezes the screen after a few presses on USB with
+  sound on. Measured with a new 'stress' command (port closed = no reader): longest loop
+  23,418 ms (sound on) / 23,408 ms (silent) vs 34 ms with a reader. Same on 2.2.1 and 2.3.0-dev.
+  Root cause (HWCDC.cpp, core 3.3.6): setTxTimeoutMs(0) -> retry counter wraps, write() waits
+  for a reader forever once the 256-byte TX buffer is full. Fix: SERIAL_TX_TIMEOUT_MS = 20
+  (+ static_assert, host test). After: 60 clicks, longest loop 34 ms no reader / 35 ms reader.
+  The first repro (open/close per press) did NOT show it: each open drains the buffer.
+  Final firmware flashed twice (2nd: 09:16:25-09:17:16).
