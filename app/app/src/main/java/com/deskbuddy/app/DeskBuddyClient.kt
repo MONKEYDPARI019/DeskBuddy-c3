@@ -231,6 +231,9 @@ object DeskBuddyClient {
         }
     }
 
+    /** C3 2.3.1+: clear all notifications on DeskBuddy, exactly like a long BTN2 press. */
+    fun clearNotifications() = send(JSONObject().put("type", "clear"))
+
     /** C3: restart into WiFi mode with the setup portal open, to join a different network. */
     fun wifiSetup() = send(JSONObject().put("type", "wifi_setup"))
 

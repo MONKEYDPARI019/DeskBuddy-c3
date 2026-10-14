@@ -8,6 +8,7 @@
 #include "logic/debounce.h"
 #include "logic/dirty_tiles.h"
 #include "config.h"
+#include "logic/protocol_types.h"
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -246,6 +247,27 @@ static void testConfig() {
     CHECK(FRAME_MS < FRAME_MS_SLEEPING);
 }
 
+static void testProtocolTypes() {
+    CHECK(msgTypeFromName("clear") == MsgType::Clear);          // 2.3.1: clear all notifications
+    CHECK(msgTypeFromName("hello") == MsgType::Hello);
+    CHECK(msgTypeFromName("notify") == MsgType::Notify);
+    CHECK(msgTypeFromName("set") == MsgType::Set);
+    CHECK(msgTypeFromName("wifi_setup") == MsgType::WifiSetup);
+    CHECK(msgTypeFromName("power_off") == MsgType::PowerOff);
+    CHECK(msgTypeFromName("ptt") == MsgType::NoAudio);           // DeskBuddy v2 voice messages
+    CHECK(msgTypeFromName("think") == MsgType::NoAudio);
+    CHECK(msgTypeFromName("say_start") == MsgType::NoAudio);
+    CHECK(msgTypeFromName("Clear") == MsgType::Unknown);         // exact names only
+    CHECK(msgTypeFromName("") == MsgType::Unknown);
+    CHECK(msgTypeFromName(nullptr) == MsgType::Unknown);
+    CHECK(msgTypeFromName("bogus") == MsgType::Unknown);
+    // every known name maps back to itself
+    for (int i = 0; i < (int)MsgType::Unknown; i++) {
+        const char* n = msgTypeName((MsgType)i);
+        CHECK(n && msgTypeFromName(n) == (MsgType)i);
+    }
+}
+
 int main() {
     testFraming();
     testText();
@@ -255,6 +277,7 @@ int main() {
     testDebounce();
     testDirtyTiles();
     testConfig();
+    testProtocolTypes();
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

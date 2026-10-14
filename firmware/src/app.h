@@ -25,6 +25,7 @@ bool appFace(const char* name);              // mood or state name
 bool appSound(const char* name);
 void appNextNotif();
 void appClearNotifs();
+void appClearAll();                          // long BTN2 / app "clear": clear + message + sound
 void appSetClock(long long epoch, const char* tzPosix, bool hasTzMin, int tzMin);
 void appSettingsChanged();                   // re-apply brightness etc.
 void appSwitchLink(uint8_t mode);            // saves, tells the app, restarts

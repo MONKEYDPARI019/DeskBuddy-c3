@@ -97,6 +97,18 @@ class MainActivity : ComponentActivity() {
                 toast("DeskBuddy restarts as WiFi '$SETUP_AP': join it on this phone and pick the new network")
             }
 
+            override fun clearNotifications() {
+                AppState.inbox.clear()
+                when {
+                    !DeskBuddyClient.connected ->
+                        toast("Cleared in the app. DeskBuddy isn't linked, so its own list stays")
+                    AppState.isC3 && DeviceFw.supportsClear(AppState.fw) ->
+                        DeskBuddyClient.clearNotifications()      // DeskBuddy clears; its new state follows
+                    AppState.isC3 ->
+                        toast("Cleared in the app. Update DeskBuddy to firmware 2.3.1 to clear it too (or hold BTN2)")
+                }
+            }
+
             override fun stop() {
                 prefs.linkOn = false
                 LinkService.stop(activity)

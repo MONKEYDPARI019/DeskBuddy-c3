@@ -195,9 +195,7 @@ void appButton(const ButtonPress& p) {
             appNextScreen();
             buzzerPlay(Sound::Screen);
         } else {
-            appClearNotifs();
-            appMessage("Cleared", "all notifications");
-            buzzerPlay(Sound::Screen);
+            appClearAll();
         }
     }
     appStateDirty();
@@ -249,6 +247,14 @@ bool appSound(const char* name) { return buzzerPlayName(name); }
 
 void appNextNotif()   { notifs.next(); appStateDirty(); }
 void appClearNotifs() { notifs.clear(); popupActive = false; appStateDirty(); }
+
+// A long BTN2 press, and the app's "clear" message (2.3.1): one place, so they always match.
+void appClearAll() {
+    wake();                                       // the app's Clear also works while Mochi sleeps
+    appClearNotifs();
+    appMessage("Cleared", "all notifications");
+    buzzerPlay(Sound::Screen);
+}
 
 void appSetClock(long long epoch, const char* tzPosix, bool hasTzMin, int tzMin) {
     if (epoch < 1700000000LL) return;

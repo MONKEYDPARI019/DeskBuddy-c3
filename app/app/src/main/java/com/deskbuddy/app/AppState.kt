@@ -17,6 +17,7 @@ data class InboxItem(val app: String, val title: String, val body: String, val t
  */
 object AppState : DeskBuddyClient.Listener {
     private val main = Handler(Looper.getMainLooper())
+    private val inboxSync = InboxSync()
 
     // link
     var connected by mutableStateOf(false)
@@ -28,6 +29,7 @@ object AppState : DeskBuddyClient.Listener {
     var shown by mutableStateOf("default")    // expression drawn on the OLED right now
     var screen by mutableStateOf("clock")
     var unread by mutableStateOf(0)
+    var deviceNotifs by mutableStateOf(0)     // notifications DeskBuddy holds right now
     var silent by mutableStateOf(false)
     var volume by mutableStateOf(80)
     var bright by mutableStateOf(220)
@@ -63,6 +65,7 @@ object AppState : DeskBuddyClient.Listener {
     }
 
     override fun onStatus(connected: Boolean, text: String) {
+        if (!connected) inboxSync.reset()        // the next connection starts a new comparison
         main.post {
             this.connected = connected
             statusText = text
@@ -71,7 +74,12 @@ object AppState : DeskBuddyClient.Listener {
 
     override fun onJson(msg: JSONObject) {
         if (msg.optString("type") != "state") return
+        val count = msg.optInt("notifs", -1)
+        // DeskBuddy emptied its list (long BTN2, or Clear here): the app's list follows
+        val deviceCleared = count >= 0 && inboxSync.onDeviceCount(count)
         main.post {
+            if (count >= 0) deviceNotifs = count
+            if (deviceCleared) inbox.clear()
             face = msg.optString("face", face)
             mood = msg.optString("mood", mood)
             shown = msg.optString("shown", mood)

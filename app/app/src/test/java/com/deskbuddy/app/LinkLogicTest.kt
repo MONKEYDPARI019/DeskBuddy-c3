@@ -63,3 +63,35 @@ class PendingNotifsTest {
         assertEquals(listOf("new"), p.drain(now = 1500))         // "old" waited too long
     }
 }
+
+class DeviceFwTest {
+    @Test fun clearNeedsC3Firmware231OrNewer() {
+        assertTrue(DeviceFw.supportsClear("c3-2.3.1"))
+        assertTrue(DeviceFw.supportsClear("c3-2.4.0"))
+        assertTrue(DeviceFw.supportsClear("c3-3.0.0"))
+        assertTrue(DeviceFw.supportsClear("c3-2.3.10"))
+        assertEquals(false, DeviceFw.supportsClear("c3-2.3.0"))   // released before "clear" existed
+        assertEquals(false, DeviceFw.supportsClear("c3-2.2.1"))
+        assertEquals(false, DeviceFw.supportsClear(""))            // not known yet
+        assertEquals(false, DeviceFw.supportsClear("2.3.1"))       // DeskBuddy v2 firmware: not a C3
+        assertEquals(false, DeviceFw.supportsClear("c3-garbage"))
+    }
+}
+
+class InboxSyncTest {
+    @Test fun clearsTheAppListWhenTheDeviceCountDropsToZero() {
+        val s = InboxSync()
+        assertEquals(false, s.onDeviceCount(0))   // first state after connecting: nothing to compare with
+        assertEquals(false, s.onDeviceCount(2))
+        assertEquals(false, s.onDeviceCount(3))
+        assertTrue(s.onDeviceCount(0))             // long BTN2 or "clear": the device emptied its list
+        assertEquals(false, s.onDeviceCount(0))   // only once
+    }
+
+    @Test fun aNewConnectionStartsOver() {
+        val s = InboxSync()
+        s.onDeviceCount(4)
+        s.reset()                                  // disconnected; the device may have restarted meanwhile
+        assertEquals(false, s.onDeviceCount(0))   // a restart empties the device: keep the app's history
+    }
+}

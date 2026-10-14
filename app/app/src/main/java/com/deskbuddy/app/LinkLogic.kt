@@ -80,3 +80,35 @@ class PendingNotifs<T>(private val max: Int = 5, private val maxAgeMs: Long = 12
         return fresh
     }
 }
+
+/** What the connected DeskBuddy's firmware ("fw" in hello/state, e.g. "c3-2.3.1") understands. */
+object DeviceFw {
+    private val C3 = Regex("""^c3-(\d+)\.(\d+)\.(\d+)""")
+
+    /** {"type":"clear"} exists since DeskBuddy C3 firmware 2.3.1; older ones answer "unknown type". */
+    fun supportsClear(fw: String): Boolean {
+        val m = C3.find(fw) ?: return false
+        val (major, minor, patch) = m.destructured.toList().map { it.toInt() }
+        return compareValues(major * 1_000_000L + minor * 1_000L + patch, 2_003_001L) >= 0
+    }
+}
+
+/**
+ * Keeps the app's notification list in step with DeskBuddy: when the device's count ("notifs" in
+ * its state) drops from some to none during one connection, its list was cleared (long BTN2,
+ * or Clear in the app), so the app clears its list too. After a reconnect the first count is
+ * only remembered: a restarted DeskBuddy is empty, and that must not wipe the app's history.
+ */
+class InboxSync {
+    private var last = -1
+
+    @Synchronized
+    fun onDeviceCount(count: Int): Boolean {
+        val cleared = last > 0 && count == 0
+        last = count
+        return cleared
+    }
+
+    @Synchronized
+    fun reset() { last = -1 }
+}

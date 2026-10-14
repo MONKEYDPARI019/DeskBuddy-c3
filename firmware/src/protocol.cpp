@@ -4,6 +4,7 @@
 #include "settings.h"
 #include "battery.h"
 #include "link.h"
+#include "logic/protocol_types.h"
 #include <ArduinoJson.h>
 #include <Arduino.h>
 
@@ -96,42 +97,64 @@ static void handleSet(JsonDocument& d, ReplyFn reply) {
 void protocolHandle(const char* line, ReplyFn reply) {
     JsonDocument d;
     if (deserializeJson(d, line)) { error(reply, "bad json"); return; }
-    const char* type = d["type"] | "";
     char buf[512];
 
-    if (!strcmp(type, "hello")) {
-        protocolHello(buf, sizeof(buf));  reply(buf);
-        protocolState(buf, sizeof(buf));  reply(buf);
-    } else if (!strcmp(type, "ping")) {
-        reply("{\"type\":\"pong\"}");
-    } else if (!strcmp(type, "get")) {
-        protocolState(buf, sizeof(buf));
-        reply(buf);
-    } else if (!strcmp(type, "time")) {
-        bool hasTzMin = d["tz_min"].is<int>();
-        appSetClock(d["epoch"] | 0LL, d["tz"] | (const char*)nullptr, hasTzMin, d["tz_min"] | 0);
-    } else if (!strcmp(type, "notify")) {
-        appNotify(d["app"] | "Phone", d["title"] | "Notification", d["body"] | "");
-    } else if (!strcmp(type, "face")) {
-        if (!appFace(d["name"] | "")) error(reply, "unknown face");
-    } else if (!strcmp(type, "screen")) {
-        const char* name = d["name"] | "next";
-        Screen s;
-        if (!strcmp(name, "next")) appNextScreen();
-        else if (screenFromName(name, &s)) appSetScreen(s);
-        else error(reply, "unknown screen");
-    } else if (!strcmp(type, "sound")) {
-        if (!appSound(d["name"] | "")) error(reply, "unknown sound");
-    } else if (!strcmp(type, "set")) {
-        handleSet(d, reply);
-    } else if (!strcmp(type, "wifi_setup")) {
-        reply("{\"type\":\"wifi_setup\",\"ap\":\"" SETUP_AP "\",\"restart_ms\":1500}");
-        appWifiSetup();
-    } else if (!strcmp(type, "power_off")) {
-        if (!appPowerOff("app")) error(reply, "power off needs the battery build");
-    } else if (!strcmp(type, "ptt") || !strcmp(type, "think") || !strncmp(type, "say_", 4)) {
-        error(reply, "no microphone or speaker on DeskBuddy C3");
-    } else {
-        error(reply, "unknown type");
+    switch (msgTypeFromName(d["type"] | "")) {
+        case MsgType::Hello:
+            protocolHello(buf, sizeof(buf));  reply(buf);
+            protocolState(buf, sizeof(buf));  reply(buf);
+            break;
+        case MsgType::Ping:
+            reply("{\"type\":\"pong\"}");
+            break;
+        case MsgType::Get:
+            protocolState(buf, sizeof(buf));
+            reply(buf);
+            break;
+        case MsgType::Time: {
+            bool hasTzMin = d["tz_min"].is<int>();
+            appSetClock(d["epoch"] | 0LL, d["tz"] | (const char*)nullptr, hasTzMin, d["tz_min"] | 0);
+            break;
+        }
+        case MsgType::Notify:
+            appNotify(d["app"] | "Phone", d["title"] | "Notification", d["body"] | "");
+            break;
+        case MsgType::Face:
+            if (!appFace(d["name"] | "")) error(reply, "unknown face");
+            break;
+        case MsgType::Screen: {
+            const char* name = d["name"] | "next";
+            Screen s;
+            if (!strcmp(name, "next")) appNextScreen();
+            else if (screenFromName(name, &s)) appSetScreen(s);
+            else error(reply, "unknown screen");
+            break;
+        }
+        case MsgType::Sound:
+            if (!appSound(d["name"] | "")) error(reply, "unknown sound");
+            break;
+        case MsgType::Set:
+            handleSet(d, reply);
+            break;
+        case MsgType::WifiSetup:
+            reply("{\"type\":\"wifi_setup\",\"ap\":\"" SETUP_AP "\",\"restart_ms\":1500}");
+            appWifiSetup();
+            break;
+        case MsgType::Clear:
+            // exactly what a long BTN2 press does; the new state goes back at once, so the
+            // app sees unread 0 without waiting for the next periodic "state"
+            appClearAll();
+            protocolState(buf, sizeof(buf));
+            reply(buf);
+            break;
+        case MsgType::PowerOff:
+            if (!appPowerOff("app")) error(reply, "power off needs the battery build");
+            break;
+        case MsgType::NoAudio:
+            error(reply, "no microphone or speaker on DeskBuddy C3");
+            break;
+        case MsgType::Unknown:
+            error(reply, "unknown type");
+            break;
     }
 }

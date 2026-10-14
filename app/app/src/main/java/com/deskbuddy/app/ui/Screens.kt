@@ -56,6 +56,7 @@ interface Actions {
     fun setModel(model: String)          // "v2" (ESP32 desk) | "c3" (ESP32-C3 pocket)
     fun setLinkMode(mode: String)        // C3 only: "ble" | "wifi"
     fun changeWifi()                     // C3 only: restart into the WiFi setup portal
+    fun clearNotifications()             // the app's list, and DeskBuddy's (C3 firmware 2.3.1+)
 }
 
 @Composable
@@ -237,8 +238,8 @@ fun InboxScreen(actions: Actions) {
     val c = LocalPal.current
     ScreenColumn {
         ScreenTitle("INBOX") {
-            if (AppState.inbox.isNotEmpty()) {
-                PixelButton("CLEAR", fontSize = 8.sp, minHeight = 40.dp) { AppState.inbox.clear() }
+            if (AppState.inbox.isNotEmpty() || (AppState.connected && AppState.deviceNotifs > 0)) {
+                PixelButton("CLEAR", fontSize = 8.sp, minHeight = 40.dp) { actions.clearNotifications() }
             }
         }
         if (AppState.inbox.isEmpty()) {
