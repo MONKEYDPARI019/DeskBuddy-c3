@@ -3,6 +3,25 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.3.1] - 2026-10-14
+
+### Fixed: Clear in the app now clears DeskBuddy too
+- **CLEAR** in the app's Inbox only emptied the app's list; the notifications stayed on DeskBuddy until a long BTN2
+  press. The app now also sends the new protocol message `{"type":"clear"}` (Bluetooth and WiFi), which does exactly
+  what a long BTN2 press does: clears all notifications, shows "Cleared" and plays the screen sound (it also works
+  while Mochi sleeps). DeskBuddy answers with its new `state`, so the app shows 0 unread at once.
+- The other way round as well: clearing on DeskBuddy (long BTN2) now clears the app's list, and the Inbox shows
+  CLEAR whenever DeskBuddy still holds notifications.
+- **Compatible both ways:** old apps never send `clear`. The new app (0.4.1) only sends it to firmware c3-2.3.1 or
+  newer; with older firmware it clears its own list and says to update DeskBuddy (or hold BTN2).
+
+### Also
+- `test buttons` no longer freezes the screen for 10 s: it reports presses from the main loop while Mochi keeps
+  moving. Further serial commands wait until it prints `done`, so `deskbuddy cmd "test buttons"` still gets the whole
+  report.
+- docs/PROTOCOL.md lists `clear` and the `wifi_setup` message from 2.3.0; host tests cover the message routing.
+- Android app 0.4.1 (versionCode 5).
+
 ## [2.3.0] - 2026-10-14
 
 ### Fixed: the screen could freeze after a few button presses (firmware 2.2.1 and older)

@@ -129,7 +129,7 @@ Use them with `deskbuddy monitor` (interactive) or `deskbuddy cmd "<command>"` (
 | `notify <text>` | Fake a notification |
 | `sound <name>` | Play a sound |
 | `time <unix seconds>` | Set the clock by hand |
-| `test oled\|leds\|buzzer\|buttons\|battery` | Hardware tests |
+| `test oled\|leds\|buzzer\|buttons\|battery` | Hardware tests (`test buttons` reports presses for 10 s while the screen keeps running) |
 | `i2c` | Scan the I2C bus (OLED = 0x3C) |
 | `oled reinit` | Restart the OLED |
 | `press 1\|2 [ms]` | Press a button in software |

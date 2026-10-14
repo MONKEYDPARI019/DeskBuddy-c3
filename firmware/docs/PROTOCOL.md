@@ -26,9 +26,13 @@ Lines longer than 1536 bytes are dropped.
 | `screen` | `name`: `clock`, `mochi`, `notify`, `next` | changes screen |
 | `sound` | `name` | plays a chirp |
 | `set` | `key`, `value`, `save` (default true) | changes a setting; `link` = `wifi`/`ble` switches radio and restarts |
+| `clear` | | 2.3.1+: clears all notifications, exactly like a long BTN2 press ("Cleared" message and sound, also while Mochi sleeps); replies `state` (`notifs: 0`, `unread: 0`) |
+| `wifi_setup` | | 2.3.0+: replies `wifi_setup` (`ap`, `restart_ms`), then restarts in WiFi mode with the setup portal open |
 | `power_off` | | deep sleep (battery build only, otherwise `error`) |
 
 `ptt`, `think`, `say_*` reply `error` (no mic or speaker on the C3). `set owm_city` is ignored quietly.
+
+**Compatibility:** firmware older than the version in the table replies `{"type":"error","msg":"unknown type"}` to a message it doesn't know. The app reads `fw` from `hello`/`state` and only sends `clear` to `c3-2.3.1` or newer; older apps never send it.
 
 ## Device → app
 
@@ -38,9 +42,10 @@ Lines longer than 1536 bytes are dropped.
 | `state` | `face`, `mood`, `shown`, `screen`, `unread`, `notifs`, `silent`, `volume`, `bright`, `sleep`, `auto_off`, `leds`, `link`, `bat` (−1 = none), `bat_mv`, `mic`, `rssi`, `ip`, `time_ok`, `uptime`, `fw`, `model` |
 | `button` | `btn` (1/2), `action`: `click`, `long`, `power` |
 | `link_switch` | `link`, `restart_ms` |
+| `wifi_setup` | `ap`, `restart_ms` |
 | `error` | `msg` |
 
-`state` is sent shortly after every change and every 15 s while an app is connected.
+`state` is sent shortly after every change and every 15 s while an app is connected. `notifs` is the number of notifications DeskBuddy holds; when it drops to 0 (long BTN2, or `clear`) the app clears its own list too.
 
 ## Settings (`set` keys)
 

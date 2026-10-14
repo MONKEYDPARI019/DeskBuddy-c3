@@ -55,7 +55,7 @@ While LINK is on, the app keeps a small **"DeskBuddy"** notification. That's wha
 |---|---|
 | **Home** | Live copy of Mochi, the screen buttons (CLOCK / MOCHI / INBOX), link and battery status, **ZZZ** (put Mochi to sleep) |
 | **Moods** | Tap one of the 15 moods to show it on DeskBuddy |
-| **Inbox** | Notifications sent so far, and which apps to forward (block noisy apps here) |
+| **Inbox** | Notifications sent so far, and which apps to forward (block noisy apps here). **CLEAR** clears the list here **and on DeskBuddy** (firmware 2.3.1+; older firmware: only the app's list, and the app says so). Clearing on DeskBuddy (long BTN2) clears the app's list too. |
 | **Setup** | Device type, link, **CHANGE WIFI** (move DeskBuddy to another network), host/port, notification forwarding on/off, silent mode, volume, brightness, sleep time, power off (battery build), theme |
 
 The voice features of DeskBuddy v2 are hidden for the C3, which has no microphone or speaker.
