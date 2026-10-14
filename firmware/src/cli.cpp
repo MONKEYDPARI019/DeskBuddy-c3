@@ -17,6 +17,8 @@
 
 static char line[MAX_LINE];
 static size_t len = 0;
+static uint16_t stressLeft = 0;                // 'stress': software clicks still to do
+static uint32_t stressGap = 400, stressNext = 0;
 
 static const char* resetReason() {
     switch (esp_reset_reason()) {
@@ -157,12 +159,28 @@ void cliRun(const char* in) {
     else if (!strcmp(cmd, "wifi") && !strcmp(a1, "setup")) appWifiSetup();
     else if (!strcmp(cmd, "wifi")) Serial.println("wifi setup|forget");
     else if (!strcmp(cmd, "echo")) Serial.println(rest);   // the PC tool's "reply complete" marker
+    else if (!strcmp(cmd, "stress")) {
+        long n = atol(a1), gap = *a2 ? atol(a2) : 400;
+        if (n < 1 || n > 1000 || gap < 150) { Serial.println("stress <1-1000> [gap ms >= 150]"); return; }
+        stressLeft = (uint16_t)n; stressGap = (uint32_t)gap; stressNext = millis() + 500;
+        Serial.printf("stress: %ld BTN1 clicks, one every %ld ms\n", n, gap);
+    }
     else if (!strcmp(cmd, "off")) { if (!appPowerOff("serial")) Serial.println("power off needs the battery build (env c3-battery)"); }
     else if (!strcmp(cmd, "reboot")) { linkShutdown(); delay(100); ESP.restart(); }
     else Serial.printf("unknown command '%s' (type help)\n", cmd);
 }
 
+// 'stress <n> [gap ms]': n BTN1 clicks in software, one every gap ms, run from the loop.
+// Lets a test press buttons with no serial reader attached (the port closed in between).
+static void stressService() {
+    if (!stressLeft || (int32_t)(millis() - stressNext) < 0) return;
+    buttonSimulate(1, 80);                    // a click: well under LONG_PRESS_MS
+    stressLeft--;
+    stressNext = millis() + stressGap;
+}
+
 void cliService() {
+    stressService();
     while (Serial.available()) {
         char c = (char)Serial.read();
         if (c == '\r') continue;

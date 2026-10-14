@@ -7,6 +7,7 @@
 #include "logic/battery_curve.h"
 #include "logic/debounce.h"
 #include "logic/dirty_tiles.h"
+#include "config.h"
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -238,6 +239,13 @@ static void testDirtyTiles() {
     CHECK(full);
 }
 
+static void testConfig() {
+    // regression: a 0 ms USB serial timeout froze the whole loop when nobody read the port
+    CHECK(SERIAL_TX_TIMEOUT_MS > 0);
+    CHECK(SERIAL_TX_TIMEOUT_MS + 10 < FRAME_MS + 17);   // one worst-case wait stays under 50 ms per loop
+    CHECK(FRAME_MS < FRAME_MS_SLEEPING);
+}
+
 int main() {
     testFraming();
     testText();
@@ -246,6 +254,7 @@ int main() {
     testBattery();
     testDebounce();
     testDirtyTiles();
+    testConfig();
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

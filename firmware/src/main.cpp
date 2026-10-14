@@ -34,7 +34,7 @@ void setup() {
     buzzerBegin();                             // first: keep the buzzer pin LOW (silent) from the very start
     powerWakeCheck();                          // battery build: woken by BTN1? must be held 3 s
     Serial.begin(115200);
-    Serial.setTxTimeoutMs(0);                  // never block when no serial monitor is reading
+    Serial.setTxTimeoutMs(SERIAL_TX_TIMEOUT_MS);   // not 0: see config.h (0 froze the loop with no reader)
     uint32_t t0 = millis();
     while (!Serial && millis() - t0 < 1000) delay(10);   // let the USB monitor attach
     Serial.printf("\n\n=== %s %s (%s build) ===\n", FW_NAME, FW_VERSION, FEATURE_BATTERY ? "battery" : "USB");

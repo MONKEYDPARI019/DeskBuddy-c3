@@ -44,6 +44,17 @@ constexpr uint32_t LONG_PRESS_MS     = 800;
 constexpr uint32_t POWER_CANCEL_MS   = 1500;    // battery build: BTN1 held longer = power-off gesture
 constexpr uint32_t POPUP_MS          = 4000;    // notification popup on other screens
 
+// USB serial (HWCDC) send timeout. NOT 0: in Arduino-ESP32 3.3.6 a 0 ms timeout
+// makes HWCDC::write() retry forever (its retry counter starts at 0 and wraps)
+// once the 256-byte send buffer is full and the PC has the port but nobody
+// reads it. The whole loop then froze until a serial monitor was opened
+// (measured: 23 s with 'stress 50'). With a small timeout write() gives up,
+// marks the PC as not reading and drops output until it reads again: at most
+// one ~20 ms wait, then printing costs nothing.
+constexpr uint32_t SERIAL_TX_TIMEOUT_MS = 20;
+static_assert(SERIAL_TX_TIMEOUT_MS > 0, "0 makes HWCDC::write() block forever with no reader");
+static_assert(SERIAL_TX_TIMEOUT_MS <= 25, "the loop must stay well inside a 33 ms frame");
+
 constexpr int  MAX_NOTIFS   = 8;
 constexpr int  MAX_LINE     = 1536;             // longest JSON line from the app (emoji/Hindi text is long in UTF-8)
 constexpr float BAT_DIVIDER = 2.0f;
