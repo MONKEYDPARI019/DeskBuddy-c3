@@ -81,7 +81,7 @@ It remembers the network from then on. If the saved network can't be reached for
 ### Change WiFi
 
 To move DeskBuddy to a different network while the old one is still in range (firmware 2.3.0+), use any one of these:
-- the app: Setup → Link → **CHANGE WIFI** (while connected, over Bluetooth or WiFi)
+- the app: Setup → Link → **Change WiFi** (while connected, over Bluetooth or WiFi)
 - the buttons: hold **BTN2 alone** while pressing RESET, for about 1 s (the screen says "Change WiFi")
 - the command line: `deskbuddy wifi-setup`, or the serial command `wifi setup`
 

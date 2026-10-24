@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define FW_NAME     "DeskBuddy C3"
-#define FW_VERSION  "c3-2.3.1"
+#define FW_VERSION  "c3-2.4.0"
 #define HOSTNAME    "deskbuddy-c3"          // WiFi mode: deskbuddy-c3.local (mDNS, OTA)
 #define BLE_NAME    "DeskBuddy-C3"          // Bluetooth name
 #define SETUP_AP    "DeskBuddy_C3_Setup"    // WiFi setup portal

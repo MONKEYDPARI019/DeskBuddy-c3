@@ -135,7 +135,7 @@ beeps after that, put a 10 kΩ resistor from GPIO10 to GND.
 
 ### The app says "can't find host" (WiFi)
 - **Same network:** the phone must be on the **same WiFi** as DeskBuddy, not mobile data and not the setup network.
-- **Host and port:** tap **FIND** in Setup, or type DeskBuddy's IP (from `deskbuddy status`) instead of `deskbuddy-c3.local`. Many Android phones can't resolve `.local` names. Port **81**.
+- **Host and port:** tap **Find** in Setup, or type DeskBuddy's IP (from `deskbuddy status`) instead of `deskbuddy-c3.local`. Many Android phones can't resolve `.local` names. Port **81**.
 - **Board online:** check that DeskBuddy is online: `deskbuddy status` should show `link wifi, online, …, 192.168.x.x`.
 
 ### "DeskBuddy_C3_Setup" doesn't appear on my phone

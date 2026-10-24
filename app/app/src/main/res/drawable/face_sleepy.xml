@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- face/sleepy: Mochi, drawn on the dark OLED colour -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="32dp"
+    android:viewportWidth="48"
+    android:viewportHeight="32">
+    <path android:pathData="M12.5 13.5H19.5M28.5 13.5H35.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M24 25.4C25.3255 25.4 26.4 24.3255 26.4 23C26.4 21.6745 25.3255 20.6 24 20.6C22.6745 20.6 21.6 21.6745 21.6 23C21.6 24.3255 22.6745 25.4 24 25.4Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- icon/speaker (DeskBuddy kawaii, tinted in code) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:pathData="M4 9.5H8L13 5V19L8 14.5H4V9.5Z"
+        android:strokeColor="#FF3A2840"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M16.5 9C16.9256 9.37537 17.2665 9.83701 17.5 10.3542C17.7335 10.8715 17.8542 11.4325 17.8542 12C17.8542 12.5675 17.7335 13.1285 17.5 13.6458C17.2665 14.163 16.9256 14.6246 16.5 15M19 6.5C19.7573 7.20208 20.3614 8.05297 20.7746 8.99939C21.1877 9.9458 21.401 10.9673 21.401 12C21.401 13.0327 21.1877 14.0542 20.7746 15.0006C20.3614 15.947 19.7573 16.7979 19 17.5"
+        android:strokeColor="#FF3A2840"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

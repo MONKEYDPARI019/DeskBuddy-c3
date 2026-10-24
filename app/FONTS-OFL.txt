@@ -1,4 +1,11 @@
-Copyright 2012 The Press Start 2P Project Authors (cody@zone38.net), with Reserved Font Name "Press Start 2P".
+Fonts in app/app/src/main/res/font:
+  fredoka_semibold.ttf  Fredoka SemiBold (static instance of Fredoka[wdth,wght], wght 600, wdth 100)
+  nunito_regular.ttf    Nunito Regular   (static instance of Nunito[wght], wght 400)
+  nunito_bold.ttf       Nunito Bold      (static instance of Nunito[wght], wght 700)
+Source: https://github.com/google/fonts (ofl/fredoka, ofl/nunito)
+
+Copyright 2016 The Fredoka Project Authors (https://github.com/hafontia/Fredoka-One)
+Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

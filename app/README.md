@@ -2,7 +2,7 @@
 
 This is a small Kotlin app that connects to DeskBuddy over the WebSocket protocol described in [`../docs/PROTOCOL.md`](../docs/PROTOCOL.md).
 
-> **v0.2 — retro UI.** Jetpack Compose screens (Home, Moods, Inbox, Voice, Setup) matching the DeskBuddy Retro App mockup; light/dark/auto theme; pixel fonts Press Start 2P + VT323 (SIL OFL, see `FONTS-OFL.txt`).
+> **v0.5 — kawaii UI.** Jetpack Compose screens (Home, Moods, Inbox, Setup, plus Voice for DeskBuddy v2) built from the kawaii pastel Figma design (https://www.figma.com/design/qS3xjTV6SfNbELhLHzSix4); light/dark/auto theme; fonts Fredoka SemiBold + Nunito (SIL OFL, see `FONTS-OFL.txt`). Colours are in `ui/Theme.kt` (same names as the Figma variables), the icons and Mochi's mood faces are vector drawables exported from the Figma components (`res/drawable/ic_*`, `face_*`).
 >
 > **Status:** builds in Android Studio and runs on a Samsung Galaxy A34 (notifications, controls, theme, icon tested).
 
@@ -20,14 +20,14 @@ This is a small Kotlin app that connects to DeskBuddy over the WebSocket protoco
 
 ## Two devices, one app
 
-**Setup → DEVICE TYPE** chooses which DeskBuddy the app talks to. The layout stays the same, and only what differs changes:
+**Setup → Device type** chooses which DeskBuddy the app talks to. The layout stays the same, and only what differs changes:
 
-| | ESP32 DESK (DeskBuddy v2) | C3 POCKET (DeskBuddy C3) |
+| | v2 Desk (DeskBuddy v2) | C3 Pocket (DeskBuddy C3) |
 |---|---|---|
-| Link | WiFi (WebSocket) | **Bluetooth** or WiFi: Setup → LINK switches the device too |
+| Link | WiFi (WebSocket) | **Bluetooth** or WiFi: Setup → Link switches the device too |
 | Home tiles | WiFi bars, weather | link, battery |
 | Screens | clock, weather, Mochi, inbox, pomodoro | clock, Mochi, inbox |
-| Voice tab | yes | not available (no mic or speaker) |
+| Voice tab | yes | hidden (no mic or speaker) |
 | Clock | internet time | the app sends the phone's time on every connect |
 
 The app also detects the type by itself: a C3 says `"model":"c3"` in its `hello`. Bluetooth code: `BleLink.kt` (Nordic UART Service). The app asks for the Bluetooth permission the first time you pick Bluetooth.

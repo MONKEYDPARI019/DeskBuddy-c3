@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- icon/wifi (DeskBuddy kawaii, tinted in code) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:pathData="M2.5 9C5.08657 6.6105 8.47862 5.28349 12 5.28349C15.5214 5.28349 18.9134 6.6105 21.5 9M5.5 12.5C7.26106 10.8478 9.58522 9.92821 12 9.92821C14.4148 9.92821 16.7389 10.8478 18.5 12.5M8.5 16C9.43464 15.0839 10.6912 14.5707 12 14.5707C13.3088 14.5707 14.5654 15.0839 15.5 16"
+        android:strokeColor="#FF3A2840"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M12 20.5C12.5523 20.5 13 20.0523 13 19.5C13 18.9477 12.5523 18.5 12 18.5C11.4477 18.5 11 18.9477 11 19.5C11 20.0523 11.4477 20.5 12 20.5Z"
+        android:fillColor="#FF3A2840"
+        android:strokeColor="#FF3A2840"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

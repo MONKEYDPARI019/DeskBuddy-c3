@@ -155,7 +155,7 @@ DeskBuddy starts in **Bluetooth** mode, which needs no setup.
 
 1. Install the DeskBuddy app on your phone (see [Phone app](phone-app.md)).
 2. Turn on the phone's **Bluetooth** and **Location**. Android needs Location for Bluetooth scanning.
-3. In the app, open **Setup** and set **Device type: C3 Pocket** and **Link: Bluetooth**. Tap **LINK**. Allow the **Nearby devices** permission when asked.
+3. In the app, open **Setup** and set **Device type: C3 Pocket** and **Link: Bluetooth**. Tap **Link**. Allow the **Nearby devices** permission when asked.
 4. Give the app **notification access** when it asks. That's how it can forward your messages.
 
 **Don't** pair DeskBuddy in Android's Bluetooth settings. The app connects to it directly.
@@ -183,8 +183,8 @@ Use WiFi if you want internet time, the browser notification link, or wireless f
    Use a **2.4 GHz** network. The ESP32-C3 can't see 5 GHz ones (names often ending in "5G").
 3. **Connect the app.**
    1. Put the phone back on your home WiFi.
-   2. In the app's Setup, set **Link: WiFi**, **Host: `deskbuddy-c3.local`** (or tap **FIND**) and **Port: 81**.
-   3. Tap **LINK**.
+   2. In the app's Setup, set **Link: WiFi**, **Host: `deskbuddy-c3.local`** (or tap **Find**) and **Port: 81**.
+   3. Tap **Link**.
 
 DeskBuddy remembers the network. To go back to Bluetooth, use the app, `deskbuddy link ble`, or the both-buttons trick again.
 

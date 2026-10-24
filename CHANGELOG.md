@@ -3,6 +3,30 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.4.0] - 2026-10-24
+
+### New: the phone app has a kawaii pastel look (Android app 0.5.0)
+- Every screen is rebuilt from the kawaii pastel design in Figma
+  (https://www.figma.com/design/qS3xjTV6SfNbELhLHzSix4): soft pink, mint, butter, sky and lavender colours, rounded
+  cards, a floating tab bar, and the fonts Fredoka and Nunito. Light, dark and auto (follows the phone) as before:
+  Setup → Theme, or the moon / sun button at the top.
+- **Home:** "Mochi live" (the same animated copy of DeskBuddy's screen, now with pink cheeks for the happy moods),
+  the screen switch, pastel tiles for link, battery, unread and device, and Sound / Ping / Zzz buttons.
+- **Moods:** the 15 moods as little Mochi faces on dark screens; the current one is pink.
+- **Inbox:** notification cards with a coloured letter for each app and the time ("2m ago"), **Clear all**, the
+  per-app switches and notification access.
+- **Setup:** pill switches for device type, link, sleep timer and theme, sliders for buzzer / volume and brightness
+  (tap or drag), and Link / Find / Stop buttons.
+- The tab bar shows Home, Moods, Inbox and Setup for the C3; Voice appears only for DeskBuddy v2.
+- New app icon: Mochi's screen with the "cute" face on pink (also as a themed icon on Android 13+).
+- Every feature works as before; only the look changed. Fixed on the way: the "All notifications" switch in the Inbox
+  shows its new position at once (it read the setting without telling the screen to redraw).
+
+### Also
+- Android app 0.5.0 (versionCode 6). The pixel fonts (Press Start 2P, VT323) are replaced by Fredoka and Nunito
+  (SIL OFL, see `app/FONTS-OFL.txt`); icons and mood faces are vector drawables exported from the Figma components.
+- Firmware, the `deskbuddy` tool and the npm package are unchanged apart from the version number.
+
 ## [2.3.1] - 2026-10-14
 
 ### Fixed: Clear in the app now clears DeskBuddy too

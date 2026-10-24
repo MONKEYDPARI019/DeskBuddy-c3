@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- icon/inbox (DeskBuddy kawaii, tinted in code) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:pathData="M3 13L6 5H18L21 13V19C21 19.3978 20.842 19.7794 20.5607 20.0607C20.2794 20.342 19.8978 20.5 19.5 20.5H4.5C4.10218 20.5 3.72064 20.342 3.43934 20.0607C3.15804 19.7794 3 19.3978 3 19V13Z"
+        android:strokeColor="#FF3A2840"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M3 13H8L9.5 15.5H14.5L16 13H21"
+        android:strokeColor="#FF3A2840"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

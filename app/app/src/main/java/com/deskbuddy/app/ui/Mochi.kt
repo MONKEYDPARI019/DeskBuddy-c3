@@ -31,9 +31,10 @@ val MOODS = listOf(
 )
 
 /*
- * Mochi's face — the same design as the firmware (src/face.cpp), drawn in
- * OLED pixel coordinates (128 x 64) and scaled to the composable.
+ * Mochi's face, live: the same design and animation as the firmware (src/face.cpp), drawn in
+ * OLED pixel coordinates (128 x 64) and scaled to the composable, plus kawaii blush cheeks.
  * [mood] is the expression, [face] the device state (listen/think/speak/notify/sleep).
+ * The Moods grid uses the static Figma drawings instead (res/drawable/face_*, see faceRes()).
  */
 
 private enum class Shape { EYE, HEART, STAR, SPIRAL, CLOSED_HAPPY, CLOSED_SLEEP }
@@ -92,11 +93,11 @@ fun MochiFace(mood: String, face: String = "idle", modifier: Modifier = Modifier
     }
     Canvas(
         modifier
-            .background(c.scr)
+            .background(c.oled)
             .semantics { contentDescription = "Mochi looks $mood" }
     ) {
         scale(size.width / 128f, size.height / 64f, pivot = Offset.Zero) {
-            drawFace(mood, face, if (animate) time else 400L, animate, c.px, c.scr)
+            drawFace(mood, face, if (animate) time else 400L, animate, c.pixel, c.oled, c.blush)
         }
     }
 }
@@ -172,7 +173,10 @@ private class Pen(val ds: DrawScope, val p: Color, val s: Color, val t: Long) {
     }
 }
 
-private fun DrawScope.drawFace(mood: String, face: String, t: Long, animate: Boolean, px: Color, scr: Color) {
+/** Moods that get pink cheeks (as in the Figma faces). */
+private val BLUSHING = setOf("happy", "love", "wink", "cute", "cat")
+
+private fun DrawScope.drawFace(mood: String, face: String, t: Long, animate: Boolean, px: Color, scr: Color, blush: Color) {
     val pen = Pen(this, px, scr, t)
     val look = lookFor(mood, face)
     val m = if (face == "sleep") "sleeping" else mood
@@ -214,6 +218,11 @@ private fun DrawScope.drawFace(mood: String, face: String, t: Long, animate: Boo
         if (ph < 140) blink = if (ph < 70) ph / 70f else (140 - ph) / 70f
     }
 
+    if (idle && m in BLUSHING) {
+        for (x in listOf(EYE_LX - 17f, EYE_RX + 17f)) {
+            drawOval(blush, Offset(x + ox - 7f, EYE_CY + bob + 17f), Size(14f, 7f))
+        }
+    }
     drawEye(pen, look.l, look.shapeL, EYE_LX + ox, EYE_CY + bob, -1, if (look.shapeL == Shape.EYE) blink else 0f, gx, gy, look.slit && idle)
     drawEye(pen, look.r, look.shapeR, EYE_RX + ox, EYE_CY + bob, 1, if (look.shapeR == Shape.EYE) blink else 0f, gx, gy, look.slit && idle)
     drawMouth(pen, look.mouth)

@@ -32,8 +32,8 @@ Open **Setup**, then:
 1. **Device type: C3 Pocket.** The app also switches to it by itself the first time a C3 answers.
 2. **Link**: choose to match DeskBuddy's current mode (shown top-left on its clock screen):
    - **Bluetooth**: nothing else to fill in.
-   - **WiFi**: **Host** `deskbuddy-c3.local` and **Port** `81`. Or tap **FIND** to search the network; it fills in DeskBuddy's IP.
-3. Tap **LINK**. The app reconnects by itself from now on, also after the phone restarts. **STOP** disconnects.
+   - **WiFi**: **Host** `deskbuddy-c3.local` and **Port** `81`. Or tap **Find** to search the network; it fills in DeskBuddy's IP.
+3. Tap **Link**. The app reconnects by itself from now on, also after the phone restarts. **Stop** disconnects.
 
 When you change **Link** while connected, the app tells DeskBuddy to switch radios, and follows it after the restart. When not connected, it only changes how the app searches, so DeskBuddy must already be in that mode.
 
@@ -43,7 +43,7 @@ When you change **Link** while connected, the app tells DeskBuddy to switch radi
 
 While LINK is on, the app keeps a small **"DeskBuddy"** notification. That's what keeps the connection alive in the background, so notifications are forwarded even when the app is closed.
 
-- **Stop** on that notification (or **STOP** in Setup) disconnects and removes it. It stays off until you tap **LINK** again.
+- **Stop** on that notification (or **Stop** in Setup) disconnects and removes it. It stays off until you tap **Link** again.
 - **Reconnecting** is quick: the app tries again as soon as the screen comes on, Bluetooth is switched back on or a WiFi network appears, instead of waiting for its retry timer. Notifications that arrive while it's reconnecting are kept for 2 minutes and sent once it's back.
 - **Searching stops by itself** after 10 minutes without finding DeskBuddy, to save battery. You then get a normal notification, "DeskBuddy not found", that you can swipe away. Tap **Search again** on it, or just open the app.
 - **Stay connected when app is closed** (Setup, on by default):
@@ -51,12 +51,14 @@ While LINK is on, the app keeps a small **"DeskBuddy"** notification. That's wha
 
 ## What you can do
 
+The app has a kawaii pastel look, in light or dark: Setup → Theme, or the moon / sun button at the top.
+
 | Screen | On a DeskBuddy C3 |
 |---|---|
-| **Home** | Live copy of Mochi, the screen buttons (CLOCK / MOCHI / INBOX), link and battery status, **ZZZ** (put Mochi to sleep) |
+| **Home** | Live copy of Mochi, the screen buttons (Clock / Mochi / Inbox), link and battery status, **Zzz** (put Mochi to sleep) |
 | **Moods** | Tap one of the 15 moods to show it on DeskBuddy |
-| **Inbox** | Notifications sent so far, and which apps to forward (block noisy apps here). **CLEAR** clears the list here **and on DeskBuddy** (firmware 2.3.1+; older firmware: only the app's list, and the app says so). Clearing on DeskBuddy (long BTN2) clears the app's list too. |
-| **Setup** | Device type, link, **CHANGE WIFI** (move DeskBuddy to another network), host/port, notification forwarding on/off, silent mode, volume, brightness, sleep time, power off (battery build), theme |
+| **Inbox** | Notifications sent so far, and which apps to forward (block noisy apps here). **Clear all** clears the list here **and on DeskBuddy** (firmware 2.3.1+; older firmware: only the app's list, and the app says so). Clearing on DeskBuddy (long BTN2) clears the app's list too. |
+| **Setup** | Device type, link, **Change WiFi** (move DeskBuddy to another network), host/port, notification forwarding on/off, silent mode, volume, brightness, sleep time, power off (battery build), theme |
 
 The voice features of DeskBuddy v2 are hidden for the C3, which has no microphone or speaker.
 
@@ -64,6 +66,6 @@ The voice features of DeskBuddy v2 are hidden for the C3, which has no microphon
 
 - **Notifications don't arrive:** check that notification access is on and forwarding is enabled in Setup, and that the app isn't blocked in Inbox. Test with `deskbuddy cmd "notify test"` to confirm the board side works.
 - **The clock shows `--:--` in Bluetooth mode:** the app sets the time when it connects. Make sure it's connected (filled dot next to `BT`).
-- **WiFi says "can't find host":** the phone must be on the same WiFi as DeskBuddy. Tap **FIND**, or type the IP from `deskbuddy status` into Host.
+- **WiFi says "can't find host":** the phone must be on the same WiFi as DeskBuddy. Tap **Find**, or type the IP from `deskbuddy status` into Host.
 
 More in [Troubleshooting](troubleshooting.md).

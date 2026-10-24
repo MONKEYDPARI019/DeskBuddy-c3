@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- icon/moon (DeskBuddy kawaii, tinted in code) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:pathData="M20 14.5C19.486 15.7029 18.6849 16.7614 17.6668 17.5827C16.6488 18.4041 15.4449 18.9633 14.1605 19.2114C12.8762 19.4594 11.5506 19.3888 10.2999 19.0056C9.04919 18.6224 7.91153 17.9383 6.98658 17.0134C6.06163 16.0884 5.37759 14.9508 4.9944 13.7001C4.6112 12.4494 4.54054 11.1238 4.78859 9.83946C5.03665 8.55512 5.59586 7.35119 6.41724 6.33314C7.23862 5.31509 8.2971 4.51399 9.49997 4C8.10758 5.39239 7.32535 7.28087 7.32535 9.25C7.32535 11.2191 8.10758 13.1076 9.49997 14.5C10.8924 15.8924 12.7808 16.6746 14.75 16.6746C16.7191 16.6746 18.6076 15.8924 20 14.5Z"
+        android:strokeColor="#FF3A2840"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- face/wink: Mochi, drawn on the dark OLED colour -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="32dp"
+    android:viewportWidth="48"
+    android:viewportHeight="32">
+    <path android:pathData="M19 10.5C19 8.84315 17.6569 7.5 16 7.5C14.3431 7.5 13 8.84315 13 10.5V15.5C13 17.1569 14.3431 18.5 16 18.5C17.6569 18.5 19 17.1569 19 15.5V10.5Z"
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M28.5 13.5C30.8333 10.8333 33.1667 10.8333 35.5 13.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M20.5 21.5C22.8333 23.8333 25.1667 23.8333 27.5 21.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M10.5 21.3C12.1569 21.3 13.5 20.4941 13.5 19.5C13.5 18.5059 12.1569 17.7 10.5 17.7C8.84315 17.7 7.5 18.5059 7.5 19.5C7.5 20.4941 8.84315 21.3 10.5 21.3Z"
+        android:fillColor="#FFFF9EBB" />
+    <path android:pathData="M37.5 21.3C39.1569 21.3 40.5 20.4941 40.5 19.5C40.5 18.5059 39.1569 17.7 37.5 17.7C35.8431 17.7 34.5 18.5059 34.5 19.5C34.5 20.4941 35.8431 21.3 37.5 21.3Z"
+        android:fillColor="#FFFF9EBB" />
+</vector>
