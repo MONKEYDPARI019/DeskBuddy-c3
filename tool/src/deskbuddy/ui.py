@@ -18,9 +18,10 @@ import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from tkinter import font as tkfont
 from typing import Any, Callable, Optional
 
-from deskbuddy import __version__, flasher, github, installer, monitor, ports
+from deskbuddy import __version__, cmd_history, flasher, github, installer, monitor, paths, ports
 from deskbuddy.errors import DeskBuddyError
 
 POLL_MS = 80
@@ -28,7 +29,26 @@ POLL_BUDGET_S = 0.05  # at most 50 ms of each 80 ms tick goes to events, so the 
 MAX_LINES = 5000
 MAX_DRAWN_PER_POLL = 300  # newest line groups drawn per tick; anything older is counted, not drawn
 EMPTY_CHIP = "invalid header: 0xffffffff"  # what an erased ESP32-C3 prints, over and over
-COLOURS = {"red": "#d32f2f", "blue": "#1565c0", "green": "#2e7d32", "yellow": "#b28704"}
+# Kawaii pastel look: the same colours as the phone app (app/.../ui/Theme.kt, Figma "Kawaii / Light").
+THEME = {
+    "bg": "#fff5f8",  # window background (soft pink)
+    "surface": "#ffffff",  # the two white cards
+    "surface2": "#ffe9f1",  # fields, soft buttons, progress track
+    "line": "#f4d7e3",  # outlines
+    "ink": "#3a2840",  # text
+    "sub": "#8a7590",  # secondary text
+    "accent": "#ff8fb3",  # INSTALL, progress, selected options
+    "accent_hover": "#ff7aa6",
+    "accent_down": "#f0679a",
+    "soft_hover": "#ffdbe8",
+    "berry": "#c2185b",  # Erase chip text, warnings
+    "mint": "#2e9e6b",  # monitor "on"
+    "oled": "#241c2c",  # serial monitor background (Mochi's screen)
+    "oled_text": "#f6eaf3",
+    "oled_dim": "#a895b0",
+}
+# serial monitor line colours (monitor.line_colour), readable on the dark monitor background
+COLOURS = {"red": "#ff7b9c", "blue": "#8ec5ff", "green": "#86e3b4", "yellow": "#ffd873"}
 
 
 @dataclass
@@ -103,9 +123,190 @@ class MonitorThread(threading.Thread):
         self._halt.set()
 
 
+def _pick_font(root: tk.Misc, *families: str) -> str:
+    """First of `families` installed on this computer (the last one is a Tk built-in fallback)."""
+    available = set(tkfont.families(root))
+    return next((f for f in families if f in available), families[-1])
+
+
+def apply_theme(root: tk.Tk) -> dict[str, str]:
+    """Colour every ttk widget in the kawaii palette. Returns the fonts chosen ("ui", "mono").
+
+    Windows' own ttk theme ("vista") ignores colours, so this uses Tk's "clam" theme, which takes them.
+    """
+    t = THEME
+    ui_font = _pick_font(root, "Segoe UI", "Nunito", "DejaVu Sans", "Helvetica")
+    mono_font = _pick_font(root, "Consolas", "Cascadia Mono", "DejaVu Sans Mono", "Courier")
+    for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
+        with contextlib.suppress(tk.TclError):
+            tkfont.nametofont(name).configure(family=ui_font, size=10)
+    root.configure(background=t["bg"])
+
+    style = ttk.Style(root)
+    style.theme_use("clam")
+
+    def flat(colour: str) -> dict[str, str]:
+        # clam draws 3D edges in lightcolor / darkcolor: same colour as the fill = flat
+        return {"background": colour, "lightcolor": colour, "darkcolor": colour}
+
+    def flat_map(*states: tuple[str, str]) -> dict[str, Any]:
+        pairs = list(states)
+        return {"background": pairs, "lightcolor": pairs, "darkcolor": pairs, "bordercolor": pairs}
+
+    style.configure(
+        ".",
+        **flat(t["surface"]),
+        foreground=t["ink"],
+        bordercolor=t["line"],
+        troughcolor=t["surface2"],
+        focuscolor=t["accent"],
+        selectbackground=t["accent"],
+        selectforeground=t["ink"],
+        font=(ui_font, 10),
+    )
+    style.configure("TFrame", background=t["surface"])
+    style.configure("Card.TFrame", background=t["surface"], bordercolor=t["line"], relief="solid", borderwidth=1)
+    style.configure("TLabel", background=t["surface"], foreground=t["ink"])
+    style.configure("Field.TLabel", foreground=t["sub"], font=(ui_font, 10, "bold"))
+    style.configure("Prompt.TLabel", foreground=t["accent_down"], font=(mono_font, 11, "bold"))
+
+    # buttons: soft pink by default, INSTALL / Send in the accent pink, Erase chip outlined
+    style.configure(
+        "TButton",
+        **flat(t["surface2"]),
+        bordercolor=t["surface2"],
+        foreground=t["ink"],
+        focuscolor=t["surface2"],
+        padding=(12, 5),
+        relief="flat",
+        font=(ui_font, 10, "bold"),
+    )
+    style.map(
+        "TButton",
+        **flat_map(("disabled", t["surface"]), ("pressed", t["line"]), ("active", t["soft_hover"])),
+        foreground=[("disabled", t["sub"])],
+    )
+    style.configure("Accent.TButton", **flat(t["accent"]), bordercolor=t["accent"], focuscolor=t["accent"])
+    style.map(
+        "Accent.TButton",
+        **flat_map(("disabled", t["line"]), ("pressed", t["accent_down"]), ("active", t["accent_hover"])),
+        foreground=[("disabled", t["sub"])],
+    )
+    style.configure(
+        "Install.TButton",
+        **flat(t["accent"]),
+        bordercolor=t["accent"],
+        focuscolor=t["accent"],
+        font=(ui_font, 13, "bold"),
+    )
+    style.map(
+        "Install.TButton",
+        **flat_map(("disabled", t["line"]), ("pressed", t["accent_down"]), ("active", t["accent_hover"])),
+        foreground=[("disabled", t["sub"])],
+    )
+    style.configure(
+        "Erase.TButton",
+        **flat(t["surface"]),
+        bordercolor=t["accent"],
+        foreground=t["berry"],
+        focuscolor=t["surface"],
+        relief="solid",
+        borderwidth=2,
+    )
+    style.map(
+        "Erase.TButton",
+        background=[("disabled", t["surface"]), ("pressed", t["line"]), ("active", t["surface2"])],
+        lightcolor=[("pressed", t["line"]), ("active", t["surface2"])],
+        darkcolor=[("pressed", t["line"]), ("active", t["surface2"])],
+        bordercolor=[("disabled", t["line"])],
+        foreground=[("disabled", t["sub"])],
+    )
+
+    # fields
+    style.configure(
+        "TCombobox",
+        **flat(t["surface2"]),
+        fieldbackground=t["surface2"],
+        bordercolor=t["line"],
+        foreground=t["ink"],
+        arrowcolor=t["ink"],
+        arrowsize=14,
+        padding=(8, 5),
+    )
+    style.map(
+        "TCombobox",
+        fieldbackground=[("readonly", t["surface2"])],
+        background=[("active", t["soft_hover"]), ("readonly", t["surface2"])],
+        bordercolor=[("focus", t["accent"])],
+        foreground=[("readonly", t["ink"])],
+        selectbackground=[("readonly", t["surface2"])],
+        selectforeground=[("readonly", t["ink"])],
+    )
+    for option, value in (
+        ("background", t["surface"]),
+        ("foreground", t["ink"]),
+        ("selectBackground", t["accent"]),
+        ("selectForeground", t["ink"]),
+        ("font", f"{{{ui_font}}} 10"),
+    ):
+        root.option_add(f"*TCombobox*Listbox.{option}", value)  # the drop-down list
+    style.configure(
+        "TEntry",
+        **flat(t["surface2"]),
+        fieldbackground=t["surface2"],
+        bordercolor=t["line"],
+        foreground=t["ink"],
+        insertcolor=t["ink"],
+        padding=(8, 4),
+    )
+    style.map("TEntry", bordercolor=[("focus", t["accent"])])
+
+    # options, progress, monitor frame, scrollbar
+    for kind in ("TRadiobutton", "TCheckbutton"):
+        style.configure(
+            kind,
+            background=t["surface"],
+            foreground=t["ink"],
+            indicatorbackground=t["surface"],
+            indicatorforeground=t["surface"],
+            upperbordercolor=t["sub"],
+            lowerbordercolor=t["sub"],
+            focuscolor=t["surface"],
+            indicatormargin=(0, 0, 6, 0),
+        )
+        style.map(
+            kind,
+            background=[("active", t["surface"])],
+            indicatorbackground=[("selected", t["accent"]), ("pressed", t["surface2"])],
+            upperbordercolor=[("selected", t["accent_down"])],
+            lowerbordercolor=[("selected", t["accent_down"])],
+        )
+    style.configure(
+        "Horizontal.TProgressbar",
+        **flat(t["accent"]),
+        troughcolor=t["surface2"],
+        bordercolor=t["surface2"],
+        thickness=12,
+    )
+    style.configure("Title.TLabel", foreground=t["ink"], font=(ui_font, 11, "bold"))
+    style.configure("Small.TButton", padding=(8, 3), width=-4, font=(ui_font, 9, "bold"))
+    style.configure(
+        "Vertical.TScrollbar",
+        **flat(t["line"]),
+        troughcolor=t["oled"],
+        bordercolor=t["oled"],
+        arrowcolor=t["ink"],
+        gripcount=0,
+    )
+    style.map("Vertical.TScrollbar", background=[("active", t["accent"])])
+    return {"ui": ui_font, "mono": mono_font}
+
+
 class InstallerWindow:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
+        self.fonts = apply_theme(root)
+        self.history = cmd_history.CommandHistory(paths.command_history_file())
         self.events: queue.Queue[Event] = queue.Queue()
         self.releases: list[github.Release] = []
         self.board_ports: list[ports.BoardPort] = []
@@ -126,24 +327,25 @@ class InstallerWindow:
 
     def _build(self) -> None:
         pad: dict[str, Any] = {"padx": 6, "pady": 3}
-        top = ttk.Frame(self.root, padding=8)
-        top.pack(fill="x")
+        t = THEME
+        top = ttk.Frame(self.root, padding=10, style="Card.TFrame")
+        top.pack(fill="x", padx=10, pady=(10, 8))
         top.columnconfigure(1, weight=1)
 
-        ttk.Label(top, text="Board:").grid(row=0, column=0, sticky="w", **pad)
+        ttk.Label(top, text="Board:", style="Field.TLabel").grid(row=0, column=0, sticky="w", **pad)
         self.port_var = tk.StringVar()
         self.port_box = ttk.Combobox(top, textvariable=self.port_var, state="readonly")
         self.port_box.grid(row=0, column=1, sticky="ew", **pad)
         self.port_box.bind("<<ComboboxSelected>>", lambda e: self.monitor.request("port", self._selected_port()))
         ttk.Button(top, text="Refresh", command=self.refresh_ports).grid(row=0, column=2, sticky="ew", **pad)
 
-        ttk.Label(top, text="Firmware:").grid(row=1, column=0, sticky="w", **pad)
+        ttk.Label(top, text="Firmware:", style="Field.TLabel").grid(row=1, column=0, sticky="w", **pad)
         self.fw_var = tk.StringVar(value="loading releases...")
         self.fw_box = ttk.Combobox(top, textvariable=self.fw_var, state="readonly")
         self.fw_box.grid(row=1, column=1, sticky="ew", **pad)
         ttk.Button(top, text="Choose .bin...", command=self.choose_file).grid(row=1, column=2, sticky="ew", **pad)
 
-        ttk.Label(top, text="Build:").grid(row=2, column=0, sticky="w", **pad)
+        ttk.Label(top, text="Build:", style="Field.TLabel").grid(row=2, column=0, sticky="w", **pad)
         opts = ttk.Frame(top)
         opts.grid(row=2, column=1, columnspan=2, sticky="w", **pad)
         self.env_var = tk.StringVar(value="usb")
@@ -152,9 +354,9 @@ class InstallerWindow:
         self.erase_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(opts, text="Erase settings", variable=self.erase_var).pack(side="left", padx=16)
 
-        self.install_btn = ttk.Button(top, text="INSTALL", command=self.install)
+        self.install_btn = ttk.Button(top, text="INSTALL", command=self.install, style="Install.TButton")
         self.install_btn.grid(row=3, column=0, columnspan=2, sticky="ew", padx=6, pady=8, ipady=6)
-        self.erase_btn = ttk.Button(top, text="Erase chip", command=self.erase_chip)
+        self.erase_btn = ttk.Button(top, text="Erase chip", command=self.erase_chip, style="Erase.TButton")
         self.erase_btn.grid(row=3, column=2, sticky="ew", padx=6, pady=8, ipady=6)
         self.progress = ttk.Progressbar(top, maximum=100)
         self.progress.grid(row=4, column=0, columnspan=3, sticky="ew", **pad)
@@ -163,34 +365,55 @@ class InstallerWindow:
         ttk.Label(top, textvariable=self.status_var).grid(row=5, column=0, columnspan=3, sticky="w", **pad)
         self.hint_var = tk.StringVar()
         self.hint_label = tk.Label(
-            top, textvariable=self.hint_var, fg="white", bg=COLOURS["red"], font=("", 11, "bold")
+            top, textvariable=self.hint_var, fg="white", bg=t["berry"], font=(self.fonts["ui"], 11, "bold"), pady=4
         )
 
-        mon = ttk.LabelFrame(self.root, text="Serial monitor", padding=6)
-        mon.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        mon = ttk.Frame(self.root, padding=10, style="Card.TFrame")
+        mon.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         head = ttk.Frame(mon)
-        head.pack(fill="x")
+        head.pack(fill="x", pady=(0, 6))
+        ttk.Label(head, text="Serial monitor", style="Title.TLabel").pack(side="left")
         self.mon_state = tk.StringVar(value="● off")
-        self.mon_label = tk.Label(head, textvariable=self.mon_state, fg="grey")
+        self.mon_label = tk.Label(
+            head, textvariable=self.mon_state, fg=t["sub"], bg=t["surface"], font=(self.fonts["ui"], 10, "bold")
+        )
         self.mon_label.pack(side="right")
         body = ttk.Frame(mon)
         body.pack(fill="both", expand=True)
-        self.text = tk.Text(body, height=14, wrap="none", state="disabled", font=("Consolas", 9))
+        self.text = tk.Text(
+            body,
+            height=14,
+            wrap="none",
+            state="disabled",
+            font=(self.fonts["mono"], 9),
+            background=t["oled"],
+            foreground=t["oled_text"],
+            insertbackground=t["oled_text"],
+            selectbackground=t["accent"],
+            selectforeground=t["ink"],
+            borderwidth=0,
+            highlightthickness=0,
+            padx=8,
+            pady=6,
+        )
         scroll = ttk.Scrollbar(body, command=self.text.yview)
         self.text.configure(yscrollcommand=scroll.set)
         self.text.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
         for name, colour in COLOURS.items():
             self.text.tag_configure(name, foreground=colour)
-        self.text.tag_configure("sent", foreground="grey")
+        self.text.tag_configure("sent", foreground=t["oled_dim"])
 
         entry_row = ttk.Frame(mon)
-        entry_row.pack(fill="x", pady=4)
-        ttk.Label(entry_row, text=">").pack(side="left")
+        entry_row.pack(fill="x", pady=6)
+        ttk.Label(entry_row, text=">", style="Prompt.TLabel").pack(side="left")
         self.entry = ttk.Entry(entry_row)
         self.entry.pack(side="left", fill="x", expand=True, padx=4)
         self.entry.bind("<Return>", lambda e: self.send_entry())
-        ttk.Button(entry_row, text="Send", command=self.send_entry).pack(side="left")
+        self.entry.bind("<Up>", self._history_older)  # earlier commands, like PowerShell
+        self.entry.bind("<Down>", self._history_newer)
+        self.entry.bind("<Escape>", self._clear_entry)
+        ttk.Button(entry_row, text="Send", command=self.send_entry, style="Accent.TButton").pack(side="left")
 
         buttons = ttk.Frame(mon)
         buttons.pack(fill="x")
@@ -202,9 +425,11 @@ class InstallerWindow:
             ("Change WiFi", "wifi setup"),
             ("Reboot", "reboot"),
         ):
-            ttk.Button(buttons, text=label, command=functools.partial(self.send, command)).pack(side="left", padx=2)
-        ttk.Button(buttons, text="Clear", command=self.clear).pack(side="left", padx=2)
-        ttk.Button(buttons, text="Save log", command=self.save_log).pack(side="left", padx=2)
+            ttk.Button(buttons, text=label, command=functools.partial(self.send, command), style="Small.TButton").pack(
+                side="left", padx=2
+            )
+        ttk.Button(buttons, text="Clear", command=self.clear, style="Small.TButton").pack(side="left", padx=2)
+        ttk.Button(buttons, text="Save log", command=self.save_log, style="Small.TButton").pack(side="left", padx=2)
 
     # --- actions ----------------------------------------------------------------------
 
@@ -361,7 +586,30 @@ class InstallerWindow:
         text = self.entry.get().strip()
         if text:
             self.send(text)
+            self.history.add(text)
             self.entry.delete(0, "end")
+
+    def _set_entry(self, text: str) -> None:
+        self.entry.delete(0, "end")
+        self.entry.insert(0, text)
+        self.entry.icursor("end")
+
+    def _history_older(self, _event: Any = None) -> str:
+        text = self.history.older(self.entry.get())
+        if text is not None:
+            self._set_entry(text)
+        return "break"
+
+    def _history_newer(self, _event: Any = None) -> str:
+        text = self.history.newer()
+        if text is not None:
+            self._set_entry(text)
+        return "break"
+
+    def _clear_entry(self, _event: Any = None) -> str:
+        self.entry.delete(0, "end")
+        self.history.reset()
+        return "break"
 
     def clear(self) -> None:
         self.text.configure(state="normal")
@@ -436,7 +684,7 @@ class InstallerWindow:
         elif ev.kind == "monitor":
             on = str(ev.value).startswith("connected")
             self.mon_state.set(f"● {'on' if on else 'off'}")
-            self.mon_label.configure(fg=COLOURS["green"] if on else "grey")
+            self.mon_label.configure(fg=THEME["mint"] if on else THEME["sub"])
             self._append(f"[{ev.value}]", "sent")
         elif ev.kind == "status":
             self.status_var.set(ev.value)
@@ -465,7 +713,7 @@ class InstallerWindow:
             self.progress["value"] = 100
             self.status_var.set("Chip erased (empty): click INSTALL.")
             self.mon_state.set("● paused")
-            self.mon_label.configure(fg="grey")
+            self.mon_label.configure(fg=THEME["sub"])
             # Like `deskbuddy erase`: leave the port alone until INSTALL. Re-opening it can reset the empty
             # chip out of download mode into a restart loop (USB dropping out, a flood of output).
             self._append(

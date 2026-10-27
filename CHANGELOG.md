@@ -3,6 +3,23 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.4.1] - 2026-10-27
+
+### New: DeskBuddy.exe (and `deskbuddy ui`) in the same pink look as the phone app
+- The installer window was plain white and grey. It now uses the app's kawaii colours: a soft pink window with two
+  white cards, a big pink **INSTALL** button, **Erase chip** outlined so it doesn't look like the main action, light
+  pink buttons and fields, a pink progress bar, and the serial monitor dark like Mochi's screen with soft colours
+  (errors pink-red, `[BLE]` blue, `[WiFi]` green, `[OLED]` yellow, your commands grey). Every button stays where it
+  was. Windows' own style ignores colours, so the window now uses Tk's "clam" style; the font stays Segoe UI.
+- **Up / Down in the command box** bring back earlier commands, like in PowerShell; the half-typed line comes back
+  after browsing, **Esc** clears the box. The last 100 commands are kept for next time in
+  `~/.deskbuddy/command_history.txt` (`deskbuddy.cmd_history`, with tests).
+
+### Also
+- docs/installer-ui.md: the new look, the command history, the **Change WiFi** button, and why the COM number differs
+  from PC to PC (the window finds the board by its USB ID).
+- Firmware, the Android app (0.5.0) and the npm launcher are unchanged apart from the version number.
+
 ## [2.4.0] - 2026-10-24
 
 ### New: the phone app has a kawaii pastel look (Android app 0.5.0)

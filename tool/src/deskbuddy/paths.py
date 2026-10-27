@@ -25,6 +25,11 @@ def logs_dir() -> Path:
     return data_dir() / "logs"
 
 
+def command_history_file() -> Path:
+    """Commands typed in the installer window, for Up / Down."""
+    return data_dir() / "command_history.txt"
+
+
 def platformio_venv_dir() -> Path:
     """Private venv holding PlatformIO when the [build] extra is not installed."""
     return platformio_dir() / "venv"

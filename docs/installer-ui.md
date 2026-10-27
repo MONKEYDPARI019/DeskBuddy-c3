@@ -25,9 +25,11 @@ A small window for installing firmware and watching the serial output, for when 
 └───────────────────────────────────────────────────────────────────┘
 ```
 
+It has the same soft pink look as the phone app, and the serial monitor is dark like Mochi's screen.
+
 ## Installing firmware
 
-1. **Board**: plug DeskBuddy in. It appears as "(found)". Click **Refresh** if you plugged it in after opening the window. With several boards, pick one here (the monitor follows your choice).
+1. **Board**: plug DeskBuddy in. It appears as "(found)". Click **Refresh** if you plugged it in after opening the window. With several boards, pick one here (the monitor follows your choice). The COM number depends on the PC (COM3 on one, COM9 on another): the window finds the board by its USB ID, so you never need to know it.
 2. **Firmware**: the releases from GitHub, newest first. To use a file you built or downloaded, click **Choose .bin…**. Pick a `deskbuddy-c3-*.bin` merged image. Offline, the list says so; use Choose .bin….
 3. **Build**: **USB** for USB power, **Battery** if you fitted the battery circuit.
 4. **Erase settings** (optional): wipes saved settings and the WiFi network, and asks you to confirm. Leave it off for normal updates.
@@ -58,6 +60,7 @@ After erasing, the chip waits in download mode, so its USB port stays steady. Th
 
 - **Output:** live output with auto-scroll. Errors are red, `[BLE]` blue, `[WiFi]` green, `[OLED]` yellow. The last 5000 lines are kept.
 - **Sending commands:** type any [serial command](using-deskbuddy.md#serial-commands) and press Enter or **Send**.
+- **Earlier commands:** press **↑** and **↓** in the command box to bring back commands you typed before, like in PowerShell. The last 100 are kept for next time (in `~/.deskbuddy/command_history.txt`). **Esc** clears the box.
 - **Quick buttons:**
 
   | Button | Sends |
@@ -66,6 +69,7 @@ After erasing, the chip waits in download mode, so its USB port stays steady. Th
   | **help** | `help` |
   | **Bluetooth** | `link ble` |
   | **WiFi** | `link wifi` |
+  | **Change WiFi** | `wifi setup` |
   | **Reboot** | `reboot` |
 - **Clear** empties the view. **Save log** writes it to a `.txt` file, which is handy when asking for help.
 - **The ● on/off indicator** shows whether the monitor holds the port. It's off while flashing, and shows "[waiting for board…]" when the board restarts or is unplugged. It reconnects by itself.
