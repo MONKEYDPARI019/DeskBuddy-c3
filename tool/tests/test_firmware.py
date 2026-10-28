@@ -213,3 +213,70 @@ def test_write_release_files(tmp_path):
 def test_write_release_files_needs_images(tmp_path):
     with pytest.raises(BuildError, match="No firmware images"):
         firmware.write_release_files(tmp_path, "2.0.0")
+
+
+def test_build_and_merge_keeps_the_app_image_for_updates(tmp_path):
+    project = make_project(tmp_path, version="c3-2.5.0")
+    build, meta = make_build(tmp_path, env="c3-battery")
+    tools = FakeTools(meta)
+    out = tmp_path / "dist"
+    merged = firmware.build_and_merge(
+        project,
+        "c3-battery",
+        out,
+        pio_cmd=["pio"],
+        env=None,
+        runner=tools.runner,
+        esptool_runner=tools.esptool,
+        syntax=V5,
+    )
+    assert merged.app == build / "firmware.bin"
+    ota = firmware.write_ota_image(merged, out)
+    assert ota == out / "deskbuddy-c3-ota-battery-v2.5.0.bin"
+    assert ota.read_bytes() == (build / "firmware.bin").read_bytes()
+
+
+def test_write_ota_image_refuses_a_missing_or_wrong_image(tmp_path):
+    merged = firmware.MergedImage("c3", tmp_path / "m.bin", "x", 1, "2.5.0")
+    with pytest.raises(BuildError, match="No app image"):
+        firmware.write_ota_image(merged, tmp_path)
+    bad = tmp_path / "firmware.bin"
+    bad.write_bytes(b"ELF not an image")
+    with pytest.raises(BuildError, match="not an ESP32 app image"):
+        firmware.write_ota_image(firmware.MergedImage("c3", tmp_path / "m.bin", "x", 1, "2.5.0", bad), tmp_path)
+
+
+def test_release_files_list_the_update_images(tmp_path):
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "deskbuddy-c3-c3-v2.5.0.bin").write_bytes(b"usb")
+    (dist / "deskbuddy-c3-c3-battery-v2.5.0.bin").write_bytes(b"battery")
+    (dist / "deskbuddy-c3-ota-usb-v2.5.0.bin").write_bytes(b"\xe9usb")
+    (dist / "deskbuddy-c3-ota-battery-v2.5.0.bin").write_bytes(b"\xe9bat")
+    (dist / "deskbuddy-c3-ota-usb-v2.4.1.bin").write_bytes(b"\xe9old")  # other versions are ignored
+    sums, manifest = firmware.write_release_files(dist, "2.5.0", tool_min_version="2.5.0")
+    names = [line.split("  ")[1] for line in sums.read_text().splitlines()]
+    assert names == [
+        "deskbuddy-c3-c3-battery-v2.5.0.bin",
+        "deskbuddy-c3-c3-v2.5.0.bin",
+        "deskbuddy-c3-ota-battery-v2.5.0.bin",
+        "deskbuddy-c3-ota-usb-v2.5.0.bin",
+    ]
+    data = json.loads(manifest.read_text())
+    assert [i["file"] for i in data["images"]] == ["deskbuddy-c3-c3-v2.5.0.bin", "deskbuddy-c3-c3-battery-v2.5.0.bin"]
+    assert data["ota_images"] == [
+        {
+            "env": "c3",
+            "build": "usb",
+            "file": "deskbuddy-c3-ota-usb-v2.5.0.bin",
+            "sha256": hashlib.sha256(b"\xe9usb").hexdigest(),
+            "size": 4,
+        },
+        {
+            "env": "c3-battery",
+            "build": "battery",
+            "file": "deskbuddy-c3-ota-battery-v2.5.0.bin",
+            "sha256": hashlib.sha256(b"\xe9bat").hexdigest(),
+            "size": 4,
+        },
+    ]

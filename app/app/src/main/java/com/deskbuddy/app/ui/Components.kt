@@ -60,6 +60,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -313,7 +315,14 @@ fun StepSlider(label: String, level: Int, valueText: String, onPick: (Int) -> Un
 }
 
 @Composable
-fun KField(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier, number: Boolean = false) {
+fun KField(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    number: Boolean = false,
+    password: Boolean = false,
+) {
     val c = LocalPal.current
     Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         BodyText(label.uppercase(), 11.sp, c.sub, bold = true)
@@ -323,13 +332,37 @@ fun KField(value: String, onChange: (String) -> Unit, label: String, modifier: M
             singleLine = true,
             textStyle = TextStyle(fontFamily = BodyFont, fontWeight = FontWeight.Normal, fontSize = 14.sp, color = c.ink),
             cursorBrush = SolidColor(c.accent),
-            keyboardOptions = KeyboardOptions(keyboardType = if (number) KeyboardType.Number else KeyboardType.Text),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = when {
+                    password -> KeyboardType.Password
+                    number -> KeyboardType.Number
+                    else -> KeyboardType.Text
+                }
+            ),
+            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(c.surface2, RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 11.dp)
                 .semantics { contentDescription = label },
         )
+    }
+}
+
+/** Thin rounded progress bar (update progress), [fraction] 0..1. */
+@Composable
+fun KProgress(fraction: Float, modifier: Modifier = Modifier) {
+    val c = LocalPal.current
+    val f = fraction.coerceIn(0f, 1f)
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(12.dp)
+            .semantics { progressBarRangeInfo = ProgressBarRangeInfo(f, 0f..1f) }
+    ) {
+        val r = CornerRadius(size.height / 2f)
+        drawRoundRect(c.surface2, Offset.Zero, size, r)
+        if (f > 0f) drawRoundRect(c.accent, Offset.Zero, Size(maxOf(size.height, size.width * f), size.height), r)
     }
 }
 
@@ -441,17 +474,16 @@ fun Header(connected: Boolean, dark: Boolean, onToggleTheme: () -> Unit) {
     }
 }
 
-/** Floating rounded tab bar. Voice is only there for DeskBuddy v2 (the C3 has no mic or speaker). */
+/** Floating rounded tab bar. */
 @Composable
-fun TabBar(active: String, showVoice: Boolean, onPick: (String) -> Unit) {
+fun TabBar(active: String, onPick: (String) -> Unit) {
     val c = LocalPal.current
-    val tabs = buildList {
-        add(Triple("home", "Home", R.drawable.ic_home))
-        add(Triple("moods", "Moods", R.drawable.ic_smile))
-        add(Triple("inbox", "Inbox", R.drawable.ic_inbox))
-        if (showVoice) add(Triple("voice", "Voice", R.drawable.ic_mic))
-        add(Triple("setup", "Setup", R.drawable.ic_sliders))
-    }
+    val tabs = listOf(
+        Triple("home", "Home", R.drawable.ic_home),
+        Triple("moods", "Moods", R.drawable.ic_smile),
+        Triple("inbox", "Inbox", R.drawable.ic_inbox),
+        Triple("setup", "Setup", R.drawable.ic_sliders),
+    )
     val bar = RoundedCornerShape(28.dp)
     Box(
         Modifier

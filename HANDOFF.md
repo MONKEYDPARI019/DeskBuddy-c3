@@ -27,7 +27,7 @@ URLs are case-insensitive).
 ```
 DeskBuddy-C3/
 ├─ firmware/                     PlatformIO project (copied unchanged from c3bud/deskbuddy-c3/firmware)
-│  ├─ platformio.ini             envs: c3 (USB), c3-battery (-DFEATURE_BATTERY=1), ota (espota)
+│  ├─ platformio.ini             envs: c3 (USB), c3-battery (-DFEATURE_BATTERY=1)
 │  ├─ partitions.csv             4 MB layout: nvs 0x9000, otadata 0xe000, app0 0x10000, app1, spiffs, coredump
 │  ├─ src/                       firmware sources (config.h holds FW_VERSION)
 │  ├─ docs/PROTOCOL.md           app <-> board protocol (existing)

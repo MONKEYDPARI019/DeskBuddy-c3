@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from deskbuddy.cmd_history import CommandHistory
+from deskbuddy.cmd_history import CommandHistory, is_secret
 
 
 def test_up_and_down_walk_through_earlier_commands():
@@ -90,3 +90,16 @@ def test_a_broken_history_file_never_stops_anything(tmp_path: Path):
     h = CommandHistory(blocked / "command_history.txt")  # its folder can't be created
     h.add("status")  # saving fails quietly
     assert h.items == ["status"]
+
+
+def test_passwords_are_never_remembered(tmp_path: Path):
+    file = tmp_path / "command_history.txt"
+    h = CommandHistory(file)
+    h.add("status")
+    h.add("otapass set hunter2")
+    h.add("  OTApass   SET  hunter2 ")
+    h.add("otapass")  # no secret in these
+    h.add("otapass clear")
+    assert h.items == ["status", "otapass", "otapass clear"]
+    assert "hunter2" not in file.read_text(encoding="utf-8")
+    assert is_secret("otapass set") and not is_secret("otapass setx") and not is_secret("status")

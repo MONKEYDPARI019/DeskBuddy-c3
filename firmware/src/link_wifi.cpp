@@ -1,4 +1,5 @@
-// WiFi mode: WebSocket server (the app), HTTP /notify, mDNS, OTA and NTP.
+// WiFi mode: WebSocket server (the app), HTTP /notify, mDNS and NTP. Firmware updates come
+// from the app as normal messages (ota.cpp), the same way as over Bluetooth.
 // Everything runs from the main loop; nothing here blocks for long:
 //  - saved WiFi: connect in the background (no 20 s freeze at boot)
 //  - no saved WiFi, or it fails for 30 s: the "DeskBuddy_C3_Setup" portal opens
@@ -6,11 +7,9 @@
 #include "link.h"
 #include "config.h"
 #include "settings.h"
-#include "ui.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
-#include <ArduinoOTA.h>
 #include <WiFiManager.h>
 #include <WebSocketsServer.h>
 #include <ArduinoJson.h>
@@ -88,18 +87,6 @@ static void startServices() {
     } else {
         Serial.println("[WiFi] mDNS failed: use the IP address in the app");
     }
-    ArduinoOTA.setHostname(HOSTNAME);
-    // OTA blocks the loop while it runs, so the progress is drawn from here
-    ArduinoOTA.onStart([]() { Serial.println("[OTA] update started"); uiOtaProgress(0); });
-    ArduinoOTA.onProgress([](unsigned int done, unsigned int total) {
-        static int last = -1;
-        int pct = total ? (int)(done * 100ULL / total) : 0;
-        if (pct != last) { last = pct; uiOtaProgress(pct); }
-    });
-    ArduinoOTA.onEnd([]() { uiOtaProgress(100); });
-    ArduinoOTA.onError([](ota_error_t e) { Serial.printf("[OTA] error %u\n", e); uiOtaProgress(-1); });
-    ArduinoOTA.begin();
-
     http = new WebServer(settings.httpPort);
     http->on("/", HTTP_GET, handleRoot);
     http->on("/notify", HTTP_GET, handleNotify);
@@ -191,7 +178,6 @@ void wifiService() {
 
     if (up && !services) startServices();
     if (services) {
-        ArduinoOTA.handle();
         http->handleClient();
         ws->loop();
         if (!timeSynced && time(nullptr) > 1700000000) {

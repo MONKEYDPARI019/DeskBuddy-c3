@@ -6,34 +6,25 @@ import android.content.Context
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("deskbuddy", Context.MODE_PRIVATE)
 
-    var host: String
-        get() = sp.getString("host", "deskbuddy.local") ?: "deskbuddy.local"
-        set(v) = sp.edit().putString("host", v).apply()
-
     var port: Int
         get() = sp.getInt("port", 81)
         set(v) = sp.edit().putInt("port", v).apply()
 
-    /** Which DeskBuddy this app talks to: "v2" (ESP32 desk version) or "c3" (ESP32-C3 pocket version). */
-    var model: String
-        get() = sp.getString("model", "v2") ?: "v2"
-        set(v) = sp.edit().putString("model", v).apply()
-
-    /** How to reach a C3: "ble" (Bluetooth, default) or "wifi". The v2 is always WiFi. */
+    /** How to reach DeskBuddy: "ble" (Bluetooth, default) or "wifi". */
     var linkMode: String
         get() = sp.getString("link_mode", "ble") ?: "ble"
         set(v) = sp.edit().putString("link_mode", v).apply()
 
-    /** Host for the C3 in WiFi mode (kept separate so switching device type keeps both). */
+    /** Host in WiFi mode. */
     var c3Host: String
         get() = sp.getString("c3_host", "deskbuddy-c3.local") ?: "deskbuddy-c3.local"
         set(v) = sp.edit().putString("c3_host", v).apply()
 
-    /** True when the app should use Bluetooth right now (C3 in BLE mode). */
-    val useBle: Boolean get() = model == "c3" && linkMode == "ble"
+    /** True when the app should use Bluetooth right now. */
+    val useBle: Boolean get() = linkMode == "ble"
 
-    /** Host the WiFi link should use for the selected device type. */
-    val wifiHost: String get() = if (model == "c3") c3Host else host
+    /** Host the WiFi link uses. */
+    val wifiHost: String get() = c3Host
 
     /** True after the user tapped LINK; the app reconnects on launch until they tap STOP. */
     var linkOn: Boolean
@@ -54,10 +45,10 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("forward", true)
         set(v) = sp.edit().putBoolean("forward", v).apply()
 
-    /** Voice test mode: play the recorded push-to-talk audio straight back. */
-    var echoVoice: Boolean
-        get() = sp.getBoolean("echo", true)
-        set(v) = sp.edit().putBoolean("echo", v).apply()
+    /** Show phone calls on DeskBuddy (firmware 2.5.0+): BTN1 answers, BTN2 declines. */
+    var callsOnDeskBuddy: Boolean
+        get() = sp.getBoolean("calls", true)
+        set(v) = sp.edit().putBoolean("calls", v).apply()
 
     /** "auto" (follow the phone), "light" or "dark". */
     var theme: String

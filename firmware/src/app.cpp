@@ -8,6 +8,7 @@
 #include "power.h"
 #include "link.h"
 #include "protocol.h"
+#include "ota.h"
 #include "logic/text.h"
 #include "logic/tz.h"
 #include <Arduino.h>
@@ -39,6 +40,10 @@ bool timeAnnounced = false;
 uint32_t restartAt = 0;                // link switch: restart at this time (0 = no)
 bool lowBatteryWarned = false;
 
+CallState call;                        // a phone call shown on DeskBuddy (2.5.0)
+uint32_t lastRing = 0;
+constexpr uint32_t RING_EVERY_MS = 2500;
+
 void enterSleep() {
     if (sleeping) return;
     sleeping = true;
@@ -67,10 +72,12 @@ void updateLeds() {
     if (batteryLow())          ledsSet(Led::Red, LedPattern::BlinkFast);
     else if (settings.silent)  ledsSet(Led::Red, LedPattern::On);
     else                       ledsSet(Led::Red, LedPattern::Off);
-    // yellow: unread notifications
-    ledsSet(Led::Yellow, notifs.unread() > 0 ? LedPattern::On : LedPattern::Off);
-    // green: app connected (solid), setup portal (fast blink), waiting (short flash)
-    if (linkClients() > 0)                       ledsSet(Led::Green, LedPattern::On);
+    // yellow: a call ringing (fast blink), unread notifications (solid)
+    if (call.ringing())          ledsSet(Led::Yellow, LedPattern::BlinkFast);
+    else                         ledsSet(Led::Yellow, notifs.unread() > 0 ? LedPattern::On : LedPattern::Off);
+    // green: updating (fast blink), app connected (solid), setup portal (fast blink), waiting (short flash)
+    if (otaBusy())                               ledsSet(Led::Green, LedPattern::BlinkFast);
+    else if (linkClients() > 0)                  ledsSet(Led::Green, LedPattern::On);
     else if (linkState() == LinkState::Portal)   ledsSet(Led::Green, LedPattern::BlinkFast);
     else                                         ledsSet(Led::Green, LedPattern::Heartbeat);
     ledsUpdate(settings.leds && !sleeping);
@@ -117,6 +124,14 @@ void appLoop() {
         ESP.restart();
     }
 
+    // a call on screen or an update running: stay awake (no sleep, no auto power-off)
+    call.tick(now);
+    if (call.visible() || otaBusy()) lastActivity = now;
+    if (call.ringing() && now - lastRing > RING_EVERY_MS) {
+        lastRing = now;
+        buzzerPlay(Sound::Ring);
+    }
+
     // Mochi falls asleep when nobody touches DeskBuddy
     if (!sleeping && settings.sleepSec && now - lastActivity > settings.sleepSec * 1000UL) enterSleep();
 
@@ -140,6 +155,7 @@ void appLoop() {
             if (!sleeping) faceReact(MOOD_HAPPY, 1500);
         }
         lastClients = c;
+        if (c == 0) call.clear();             // the phone is gone: it can't tell us the call ended
         appStateDirty();
     }
 
@@ -172,6 +188,22 @@ void appButton(const ButtonPress& p) {
     linkSend(buf);
 
     if (p.ev == BtnEvent::Power) { appPowerOff("button"); return; }
+
+    // an update question or a call on screen gets the press first (BTN1 yes/answer, BTN2 no/decline)
+    if (otaButton(p)) { lastActivity = millis(); return; }
+    CallBtn cb = call.onButton(p.btn, millis());
+    if (cb != CallBtn::NotMine) {
+        lastActivity = millis();
+        if (const char* what = callBtnAction(cb)) {
+            char msg[96];
+            snprintf(msg, sizeof(msg), "{\"type\":\"call_action\",\"action\":\"%s\",\"id\":\"%s\"}", what, call.id());
+            linkSend(msg);
+            buzzerOff();                       // stop the ring at once
+            buzzerPlay(Sound::Screen);
+            Serial.printf("[Call] %s\n", what);
+        }
+        return;
+    }
     if (wake()) return;                        // the first press only wakes Mochi up
 
     if (p.btn == 1) {
@@ -216,6 +248,28 @@ void appNotify(const char* app, const char* title, const char* body) {
     faceSetState(FACE_STATE_NOTIFY);
     buzzerPlay(Sound::Notify);
     appStateDirty();
+}
+
+// {"type":"call",...} from the app. The id is made by the app; only safe characters are kept
+// because it goes back inside a JSON string.
+bool appCall(const char* state, const char* name, const char* app, const char* id) {
+    char n[CallState::NAME], a[CallState::APP], k[CallState::ID];
+    asciiFold(name ? name : "", n, sizeof(n));
+    asciiFold(app ? app : "", a, sizeof(a));
+    size_t j = 0;
+    for (const char* p = id ? id : ""; *p && j < sizeof(k) - 1; p++) {
+        if (isalnum((unsigned char)*p) || *p == '-' || *p == '_') k[j++] = *p;
+    }
+    k[j] = '\0';
+    bool wasRinging = call.ringing();
+    if (!call.onPhone(state, n, a, k, millis())) return false;
+    if (call.ringing() && !wasRinging) {
+        lastRing = 0;                          // ring at once
+        Serial.printf("[Call] %s calling (%s)\n", call.name(), call.app());
+    }
+    if (!call.ringing() && wasRinging) buzzerOff();
+    if (call.visible()) wake();
+    return true;
 }
 
 void appSetScreen(Screen s) {
@@ -328,6 +382,7 @@ bool   appTimeValid(){ return time(nullptr) > 1700000000; }
 const NotifStore<MAX_NOTIFS>& appNotifs() { return notifs; }
 int    appUnread()   { return notifs.unread(); }
 bool   appRestarting() { return restartAt != 0; }
+const CallState& appCallState() { return call; }
 
 bool appPopup(const Notification** n) {
     if (!popupActive || notifs.count() == 0) return false;

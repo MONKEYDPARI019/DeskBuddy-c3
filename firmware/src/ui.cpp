@@ -7,6 +7,8 @@
 #include "buttons.h"
 #include "power.h"
 #include "link.h"
+#include "ota.h"
+#include "logic/ota_core.h"
 #include "logic/text.h"
 #include <Arduino.h>
 #include <time.h>
@@ -179,6 +181,99 @@ void drawMessage(const char* title, const char* sub) {
     center(sub, 43);
 }
 
+// ---- phone call (2.5.0): BTN1 answers, BTN2 declines; the sound stays on the phone --------
+void header(const char* text, bool inverted) {
+    gfx.setFont(u8g2_font_6x10_tf);
+    if (inverted) {
+        gfx.drawBox(0, 0, 128, 12);
+        gfx.setDrawColor(0);
+    }
+    center(text, 10);
+    gfx.setDrawColor(1);
+}
+
+void bigName(const char* name, int y) {
+    gfx.setFont(u8g2_font_7x14B_tf);
+    if (gfx.getStrWidth(name) > 126) gfx.setFont(u8g2_font_6x10_tf);
+    char clipped[CallState::NAME];
+    strlcpy(clipped, name, sizeof(clipped));
+    for (size_t n = strlen(clipped); n > 0 && gfx.getStrWidth(clipped) > 126; n--) clipped[n - 1] = '\0';
+    center(clipped, y);
+}
+
+void drawCall(const CallState& c) {
+    uint32_t now = millis();
+    char top[24];
+    const char* foot = "";
+    bool blink = false;
+    switch (c.phase()) {
+        case CallPhase::Ringing:
+            strlcpy(top, "INCOMING CALL", sizeof(top));
+            blink = (now / 500) % 2 == 0;
+            foot = "BTN1 answer  BTN2 decline";
+            break;
+        case CallPhase::Answering: strlcpy(top, "ANSWERING...", sizeof(top)); foot = "talk on your phone"; break;
+        case CallPhase::Declining: strlcpy(top, "DECLINING...", sizeof(top)); break;
+        case CallPhase::HangingUp: strlcpy(top, "HANGING UP...", sizeof(top)); break;
+        case CallPhase::Active: {
+            uint32_t s = c.activeSeconds(now);
+            snprintf(top, sizeof(top), "ON CALL  %lu:%02lu", (unsigned long)(s / 60), (unsigned long)(s % 60));
+            foot = "BTN1 hide  BTN2 end";
+            break;
+        }
+        case CallPhase::Ended: strlcpy(top, "CALL ENDED", sizeof(top)); break;
+        case CallPhase::None: return;
+    }
+    header(top, blink || c.phase() == CallPhase::Active);
+    bigName(c.name(), 33);
+    gfx.setFont(u8g2_font_5x8_tf);
+    center(c.app(), 45);
+    gfx.setFont(u8g2_font_5x8_tf);
+    center(foot, 62);
+}
+
+// ---- update from the app (2.5.0) ---------------------------------------------------------
+bool drawOta() {
+    int pct;
+    uint32_t left;
+    const char* ver;
+    OtaView v = otaView(&pct, &left, &ver);
+    if (v == OtaView::None) return false;
+    char line[32];
+    if (v == OtaView::AskUpdate || v == OtaView::AskPassword) {
+        header(v == OtaView::AskUpdate ? "UPDATE DESKBUDDY?" : "SET UPDATE PASSWORD?", true);
+        gfx.setFont(u8g2_font_5x8_tf);
+        if (v == OtaView::AskUpdate) {
+            if (*ver) snprintf(line, sizeof(line), "v%s from the phone", ver);
+            else strlcpy(line, "from the phone", sizeof(line));
+            center(line, 24);
+        } else {
+            center("asked by the phone", 24);
+        }
+        gfx.setFont(u8g2_font_6x10_tf);
+        gfx.drawStr(4, 40, "BTN1  yes");
+        gfx.drawStr(70, 40, "BTN2  no");
+        gfx.drawFrame(4, 50, 120, 8);                       // time left to answer
+        gfx.drawBox(6, 52, 116 * left / (OTA_CONFIRM_MS / 1000), 4);
+        return true;
+    }
+    if (v == OtaView::Done) {
+        header("UPDATED", true);
+        gfx.setFont(u8g2_font_7x14B_tf);
+        center("restarting...", 38);
+        return true;
+    }
+    header("UPDATING", true);
+    gfx.setFont(u8g2_font_7x14B_tf);
+    snprintf(line, sizeof(line), "%d%%", pct);
+    center(line, 32);
+    gfx.drawFrame(4, 38, 120, 10);
+    gfx.drawBox(6, 40, 116 * pct / 100, 6);
+    gfx.setFont(u8g2_font_5x8_tf);
+    center("keep the phone close", 58);
+    return true;
+}
+
 void drawPowerHold() {
     if (!powerSupported()) return;
     uint32_t held = buttonHeldMs(1);
@@ -205,30 +300,27 @@ void uiSplash(const char* title, const char* sub) {
     oledSend();
 }
 
-void uiOtaProgress(int pct) {
-    gfx.clearBuffer();
-    gfx.setFont(u8g2_font_7x14B_tf);
-    center(pct < 0 ? "OTA FAILED" : "OTA UPDATE", 22);
-    if (pct >= 0) {
-        gfx.setFont(u8g2_font_5x8_tf);
-        center(pct >= 100 ? "done, restarting" : "do not unplug", 38);
-        gfx.drawFrame(10, 46, 108, 10);
-        gfx.drawBox(12, 48, 104 * pct / 100, 6);
-    }
-    oledSend();
-}
-
 void uiRender() {
     gfx.clearBuffer();
     gfx.setDrawColor(1);
-    switch (appScreen()) {
-        case Screen::Clock:  drawClock(); break;
-        case Screen::Mochi:  drawMochi(); break;
-        case Screen::Notify: drawNotify(); break;
-        default: break;
+    if (drawOta()) {                                  // an update question or progress: nothing else
+        drawPowerHold();
+        oledSend();
+        return;
     }
-    const Notification* n;
-    if (appPopup(&n)) drawPopup(n);
+    const CallState& call = appCallState();
+    if (call.visible()) {
+        drawCall(call);
+    } else {
+        switch (appScreen()) {
+            case Screen::Clock:  drawClock(); break;
+            case Screen::Mochi:  drawMochi(); break;
+            case Screen::Notify: drawNotify(); break;
+            default: break;
+        }
+        const Notification* n;
+        if (appPopup(&n)) drawPopup(n);
+    }
     const char *t, *s;
     if (appMessageActive(&t, &s)) drawMessage(t, s);
     drawPowerHold();

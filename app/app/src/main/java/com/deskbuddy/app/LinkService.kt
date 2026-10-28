@@ -23,8 +23,8 @@ import android.os.Looper
 import org.json.JSONObject
 
 /**
- * Foreground service that keeps the DeskBuddy connection (and voice loop)
- * running while the app is in the background.
+ * Foreground service that keeps the DeskBuddy connection running while the app is in the
+ * background, and presses Answer / Decline when BTN1 / BTN2 on DeskBuddy say so (CallBridge).
  *
  * It never searches forever:
  *  - the notification has a STOP button (same as STOP in the app);
@@ -34,7 +34,7 @@ import org.json.JSONObject
  * Opening the app reconnects while LINK is on (MainActivity).
  */
 class LinkService : Service(), DeskBuddyClient.Listener {
-    private var voice: VoiceLoop? = null
+    private var listening = false
     private val main = Handler(Looper.getMainLooper())
 
     /** True while shutting down: late status callbacks must not re-post the notification. */
@@ -107,8 +107,8 @@ class LinkService : Service(), DeskBuddyClient.Listener {
 
         val prefs = Prefs(this)
         prefs.linkOn = true
-        if (voice == null) {
-            voice = VoiceLoop(this, prefs).also { DeskBuddyClient.addListener(it) }
+        if (!listening) {
+            listening = true
             DeskBuddyClient.addListener(this)
         }
         connectFromPrefs(prefs)
@@ -158,9 +158,8 @@ class LinkService : Service(), DeskBuddyClient.Listener {
 
     private var discovery: Discovery? = null
 
-    /** Pick the transport for the selected device type: v2 = WiFi, C3 = Bluetooth or WiFi. */
+    /** Bluetooth or WiFi, as set in Setup > Link. */
     private fun connectFromPrefs(prefs: Prefs) {
-        DeskBuddyClient.isC3 = prefs.model == "c3"
         if (prefs.useBle) {
             DeskBuddyClient.connectBle(this)
             return
@@ -174,7 +173,7 @@ class LinkService : Service(), DeskBuddyClient.Listener {
             d.find(
                 onFound = { ip, port -> DeskBuddyClient.connect(ip, port) },
                 onFail = { DeskBuddyClient.connect(host, prefs.port) },
-                nameHint = if (prefs.model == "c3") "c3" else null
+                nameHint = "c3"
             )
         } else {
             DeskBuddyClient.connect(host, prefs.port)
@@ -184,16 +183,8 @@ class LinkService : Service(), DeskBuddyClient.Listener {
     override fun onJson(msg: JSONObject) {
         val prefs = Prefs(this)
         when (msg.optString("type")) {
-            // the device tells us what it is: keep the app's device type in step
-            "hello" -> {
-                val model = if (msg.optString("model") == "c3") "c3" else "v2"
-                if (model != prefs.model) {
-                    prefs.model = model
-                    DeskBuddyClient.isC3 = model == "c3"
-                    main.post { AppState.model = model }
-                    if (model == "c3") DeskBuddyClient.sendTime()
-                }
-            }
+            // BTN1 / BTN2 on DeskBuddy while a call shows (firmware 2.5.0+)
+            "call_action" -> CallBridge.onAction(this, msg.optString("action"), msg.optString("id"))
             // a C3 is restarting with the other radio: follow it after it reboots
             "link_switch" -> followRestart(prefs, if (msg.optString("link") == "wifi") "wifi" else "ble")
             // "Change WiFi": the C3 restarts in WiFi mode with its setup portal open. The app
@@ -223,9 +214,8 @@ class LinkService : Service(), DeskBuddyClient.Listener {
         running = false
         cancelGiveUp()
         stopWatching()
-        voice?.let { DeskBuddyClient.removeListener(it); it.shutdown() }
         DeskBuddyClient.removeListener(this)
-        voice = null
+        listening = false
         discovery?.stop()
         notificationManager().cancel(NOTIF_ID)
         super.onDestroy()

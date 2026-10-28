@@ -7,6 +7,8 @@
 enum class MsgType : unsigned char {
     Hello = 0, Ping, Get, Time, Notify, Face, Screen, Sound, Set, PowerOff, WifiSetup,
     Clear,      // 2.3.1: clear all notifications, like a long BTN2 press
+    OtaNonce, OtaBegin, OtaData, OtaEnd, OtaAbort, OtaPass,   // 2.5.0: updates from the app
+    Call,       // 2.5.0: a phone call is ringing / active / ended
     NoAudio,    // DeskBuddy v2 voice messages (ptt, think, say_*): the C3 has no mic or speaker
     Unknown     // keep last
 };
@@ -25,6 +27,13 @@ inline const char* msgTypeName(MsgType t) {
         case MsgType::PowerOff:  return "power_off";
         case MsgType::WifiSetup: return "wifi_setup";
         case MsgType::Clear:     return "clear";
+        case MsgType::OtaNonce:  return "ota_nonce";
+        case MsgType::OtaBegin:  return "ota_begin";
+        case MsgType::OtaData:   return "ota_data";
+        case MsgType::OtaEnd:    return "ota_end";
+        case MsgType::OtaAbort:  return "ota_abort";
+        case MsgType::OtaPass:   return "ota_pass";
+        case MsgType::Call:      return "call";
         case MsgType::NoAudio:   return "ptt";
         case MsgType::Unknown:   break;
     }

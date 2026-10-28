@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 #define FW_NAME     "DeskBuddy C3"
-#define FW_VERSION  "c3-2.4.1"
-#define HOSTNAME    "deskbuddy-c3"          // WiFi mode: deskbuddy-c3.local (mDNS, OTA)
+#define FW_VERSION  "c3-2.5.0"
+#define HOSTNAME    "deskbuddy-c3"          // WiFi mode: deskbuddy-c3.local (mDNS)
 #define BLE_NAME    "DeskBuddy-C3"          // Bluetooth name
 #define SETUP_AP    "DeskBuddy_C3_Setup"    // WiFi setup portal
 
@@ -16,6 +16,9 @@
 #ifndef FEATURE_BATTERY
 #define FEATURE_BATTERY 0
 #endif
+
+// Which build this is ("build" in hello/state): the app downloads the matching update image.
+constexpr const char* BUILD_NAME = FEATURE_BATTERY ? "battery" : "usb";
 
 // ---------------------------------------------------------------------------
 // Pins (ESP32-C3 Super Mini)

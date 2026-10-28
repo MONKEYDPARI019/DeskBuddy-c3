@@ -43,15 +43,28 @@ jobs:
         run: pip install "platformio>=6.1,<7" "esptool>=4.8,<6"
       - name: Build and merge both images
         run: python scripts/merge_firmware.py c3 c3-battery dist
-      - name: Build debug APK (only if a Gradle wrapper exists)
+      - name: Build the signed APK (only if a Gradle wrapper exists)
         shell: bash
+        env:
+          # the app's signing key (docs/development.md): the same key every release, so a new
+          # APK installs over the old one. Never stored in the repository.
+          KEYSTORE_BASE64: ${{ secrets.DESKBUDDY_KEYSTORE_BASE64 }}
+          DESKBUDDY_KEYSTORE_PASSWORD: ${{ secrets.DESKBUDDY_KEYSTORE_PASSWORD }}
+          DESKBUDDY_KEY_ALIAS: ${{ secrets.DESKBUDDY_KEY_ALIAS }}
         run: |
-          if [ -f app/gradlew ] && [ -f app/gradle/wrapper/gradle-wrapper.jar ]; then
-            (cd app && ./gradlew --no-daemon assembleDebug)
-            cp app/app/build/outputs/apk/debug/*.apk "dist/deskbuddy-app-${GITHUB_REF_NAME}-debug.apk"
-          else
+          if [ ! -f app/gradlew ] || [ ! -f app/gradle/wrapper/gradle-wrapper.jar ]; then
             echo "::notice title=No APK::app/ has no Gradle wrapper; the release contains firmware only."
+            exit 0
           fi
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/deskbuddy.jks"
+            export DESKBUDDY_KEYSTORE="$RUNNER_TEMP/deskbuddy.jks"
+          else
+            echo "::warning title=APK not signed with the release key::Add the DESKBUDDY_KEYSTORE_BASE64 secret (docs/development.md). This APK uses a throwaway key: installing it over an older one needs an uninstall."
+          fi
+          (cd app && ./gradlew --no-daemon assembleRelease)
+          rm -f "$RUNNER_TEMP/deskbuddy.jks"
+          cp app/app/build/outputs/apk/release/*.apk "dist/deskbuddy-app-${GITHUB_REF_NAME}.apk"
       - name: Release notes from CHANGELOG.md
         run: |
           python - <<'EOF'

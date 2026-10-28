@@ -11,13 +11,30 @@ android {
         applicationId = "com.deskbuddy.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.5.0"
+        versionCode = 7
+        versionName = "0.6.0"
+    }
+
+    // One fixed key, so a new APK installs over the old one (no uninstall, settings kept).
+    // CI reads it from the repository secrets (see docs/development.md); the keystore itself is
+    // never in the repository. Without the secrets (a local build) release APKs use the debug key.
+    val keystoreFile = System.getenv("DESKBUDDY_KEYSTORE")?.let { file(it) }?.takeIf { it.isFile }
+    signingConfigs {
+        if (keystoreFile != null) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = System.getenv("DESKBUDDY_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("DESKBUDDY_KEY_ALIAS") ?: "deskbuddy"
+                keyPassword = System.getenv("DESKBUDDY_KEY_PASSWORD") ?: System.getenv("DESKBUDDY_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = if (keystoreFile != null) signingConfigs.getByName("release")
+                            else signingConfigs.getByName("debug")
         }
     }
     compileOptions {

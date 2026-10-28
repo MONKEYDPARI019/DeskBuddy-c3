@@ -7,7 +7,7 @@
 
 enum class Sound : uint8_t {
     None = 0, Hello, Bye, Screen, Notify, Mood, Happy, Sad, Surprised, Purr,
-    Link, Error, SilentOn, SilentOff, LowBattery, Count
+    Link, Error, SilentOn, SilentOff, LowBattery, Ring, Count
 };
 
 void        buzzerBegin();

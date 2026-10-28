@@ -4,6 +4,7 @@
 #include "settings.h"
 #include "battery.h"
 #include "link.h"
+#include "ota.h"
 #include "logic/protocol_types.h"
 #include <ArduinoJson.h>
 #include <Arduino.h>
@@ -20,8 +21,10 @@ size_t protocolHello(char* buf, size_t n) {
     d["device"] = FW_NAME;
     d["model"]  = "c3";
     d["fw"]     = FW_VERSION;
+    d["build"]  = BUILD_NAME;
     d["link"]   = linkName(settings.link);
     d["mic"]    = false;
+    d["ota_pass"] = otaHasPassword();
     JsonArray s = d["screens"].to<JsonArray>();
     for (int i = 0; i < (int)Screen::Count; i++) s.add(screenName((Screen)i));
     return serializeJson(d, buf, n);
@@ -32,6 +35,8 @@ size_t protocolState(char* buf, size_t n) {
     d["type"]     = "state";
     d["model"]    = "c3";
     d["fw"]       = FW_VERSION;
+    d["build"]    = BUILD_NAME;
+    d["ota_pass"] = otaHasPassword();
     d["face"]     = faceStateName(faceGetState());
     d["mood"]     = faceMoodName(faceGetMood());
     d["shown"]    = faceMoodName(faceShownMood());
@@ -146,6 +151,30 @@ void protocolHandle(const char* line, ReplyFn reply) {
             appClearAll();
             protocolState(buf, sizeof(buf));
             reply(buf);
+            break;
+        // ---- 2.5.0: updates from the app (ota.cpp) and phone calls ----
+        case MsgType::OtaNonce:
+            otaNonce(reply);
+            break;
+        case MsgType::OtaBegin:
+            otaStart(d["size"] | 0UL, d["sha256"] | "", d["proof"] | "", d["version"] | "", reply);
+            break;
+        case MsgType::OtaData: {
+            const char* data = d["data"] | "";
+            otaData(d["seq"] | 0UL, data, strlen(data), reply);
+            break;
+        }
+        case MsgType::OtaEnd:
+            otaFinish(reply);
+            break;
+        case MsgType::OtaAbort:
+            otaCancel();
+            break;
+        case MsgType::OtaPass:
+            otaPassword(d["key"] | "", d["proof"] | "", reply);
+            break;
+        case MsgType::Call:
+            if (!appCall(d["state"] | "", d["name"] | "", d["app"] | "", d["id"] | "")) error(reply, "unknown call state");
             break;
         case MsgType::PowerOff:
             if (!appPowerOff("app")) error(reply, "power off needs the battery build");

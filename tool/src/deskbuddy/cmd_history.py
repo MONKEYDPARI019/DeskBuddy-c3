@@ -8,6 +8,15 @@ from typing import Optional
 
 MAX_COMMANDS = 100
 
+# Commands that carry a secret are sent but never remembered (the history is a plain text file).
+SECRET_PREFIXES = ("otapass set",)
+
+
+def is_secret(command: str) -> bool:
+    """'otapass set hunter2' -> True: keep it out of the history file."""
+    words = " ".join(command.lower().split())
+    return any(words == p or words.startswith(p + " ") for p in SECRET_PREFIXES)
+
 
 class CommandHistory:
     """Oldest command first. The position len(items) means "the new line being typed"."""
@@ -39,9 +48,9 @@ class CommandHistory:
             pass  # the history is a convenience: it must never stop a command from being sent
 
     def add(self, command: str) -> None:
-        """Remember a sent command (not twice in a row) and go back to the new line."""
+        """Remember a sent command (not twice in a row, never a password) and go back to the new line."""
         command = command.strip()
-        if command and (not self.items or self.items[-1] != command):
+        if command and not is_secret(command) and (not self.items or self.items[-1] != command):
             self.items.append(command)
             del self.items[: -self.limit]
             self._save()

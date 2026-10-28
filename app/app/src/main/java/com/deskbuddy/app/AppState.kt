@@ -34,31 +34,32 @@ object AppState : DeskBuddyClient.Listener {
     var volume by mutableStateOf(80)
     var bright by mutableStateOf(220)
     var sleepSec by mutableStateOf(300)
-    var mic by mutableStateOf(false)
     var rssi by mutableStateOf(0)
     var ip by mutableStateOf("")
-    var temp by mutableStateOf<Int?>(null)
-    var city by mutableStateOf("")
-    var owmCity by mutableStateOf("")
     var fw by mutableStateOf("")
-    var bat by mutableStateOf(-1)             // C3 battery %, -1 = no battery / unknown
-    var deviceLink by mutableStateOf("")       // C3: "wifi" | "ble" as reported by the device
+    var bat by mutableStateOf(-1)             // battery %, -1 = no battery / unknown
+    var deviceLink by mutableStateOf("")       // "wifi" | "ble" as reported by the device
+    var build by mutableStateOf("")            // "usb" | "battery" (firmware 2.5.0+)
+    var otaPass by mutableStateOf(false)       // DeskBuddy has an update password (2.5.0+)
 
-    // which DeskBuddy the app is set up for: "v2" (ESP32) or "c3" (ESP32-C3), see Prefs.model
-    var model by mutableStateOf("v2")
-    var linkMode by mutableStateOf("ble")      // C3 only: "ble" | "wifi"
-    val isC3: Boolean get() = model == "c3"
+    var linkMode by mutableStateOf("ble")      // how the app looks for DeskBuddy: "ble" | "wifi"
+
+    // "Update DeskBuddy" (OtaUpdater)
+    var otaBusy by mutableStateOf(false)
+    var otaStep by mutableStateOf("")          // what is happening / what went wrong
+    var otaProgress by mutableStateOf(-1f)     // 0..1 while the image is sent, -1 = no bar
+    var otaLatest by mutableStateOf("")        // newest release on GitHub, e.g. "2.5.1" ("" = not checked)
 
     // app side
     var theme by mutableStateOf("auto")
     var notifAccess by mutableStateOf(false)
+    var canAnswerCalls by mutableStateOf(false) // ANSWER_PHONE_CALLS granted
     val inbox = mutableStateListOf<InboxItem>()
     val knownApps = mutableStateListOf<String>()
     val blockedApps = mutableStateListOf<String>()
 
     fun load(prefs: Prefs) {
         theme = prefs.theme
-        model = prefs.model
         linkMode = prefs.linkMode
         knownApps.clear(); knownApps.addAll(prefs.knownApps.sorted())
         blockedApps.clear(); blockedApps.addAll(prefs.blockedApps)
@@ -73,6 +74,14 @@ object AppState : DeskBuddyClient.Listener {
     }
 
     override fun onJson(msg: JSONObject) {
+        if (msg.optString("type") == "hello") {
+            main.post {
+                fw = msg.optString("fw", fw)
+                build = msg.optString("build", build)
+                otaPass = msg.optBoolean("ota_pass", otaPass)
+            }
+            return
+        }
         if (msg.optString("type") != "state") return
         val count = msg.optInt("notifs", -1)
         // DeskBuddy emptied its list (long BTN2, or Clear here): the app's list follows
@@ -89,15 +98,13 @@ object AppState : DeskBuddyClient.Listener {
             volume = msg.optInt("volume", volume)
             bright = msg.optInt("bright", bright)
             sleepSec = msg.optInt("sleep", sleepSec)
-            mic = msg.optBoolean("mic", mic)
             rssi = msg.optInt("rssi", rssi)
             ip = msg.optString("ip", ip)
-            temp = if (msg.has("temp")) msg.optInt("temp") else temp
-            city = msg.optString("city", city)
-            owmCity = msg.optString("owm_city", owmCity)
             fw = msg.optString("fw", fw)
             bat = msg.optInt("bat", bat)
             deviceLink = msg.optString("link", deviceLink)
+            build = msg.optString("build", build)
+            otaPass = msg.optBoolean("ota_pass", otaPass)
         }
     }
 

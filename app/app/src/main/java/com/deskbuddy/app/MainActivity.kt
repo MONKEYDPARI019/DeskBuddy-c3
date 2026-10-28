@@ -16,11 +16,11 @@ import com.deskbuddy.app.ui.DeskBuddyApp
 class MainActivity : ComponentActivity() {
     companion object {
         private const val REQ_BLE = 2
+        private const val REQ_CALLS = 3
         private const val SETUP_AP = "DeskBuddy_C3_Setup"
     }
 
     private lateinit var prefs: Prefs
-    private lateinit var tts: TtsPcm
     private lateinit var discovery: Discovery
 
     /** What to do once the Bluetooth permission prompt is answered with "Allow". */
@@ -29,7 +29,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
-        tts = TtsPcm(this)
         discovery = Discovery(this)
         AppState.load(prefs)
 
@@ -47,35 +46,25 @@ class MainActivity : ComponentActivity() {
             override var forward: Boolean
                 get() = prefs.forwardNotifications
                 set(v) { prefs.forwardNotifications = v }
-            override var echo: Boolean
-                get() = prefs.echoVoice
-                set(v) { prefs.echoVoice = v }
+            override var callsOn: Boolean
+                get() = prefs.callsOnDeskBuddy
+                set(v) { prefs.callsOnDeskBuddy = v }
             override var keepInBackground: Boolean
                 get() = prefs.keepInBackground
                 set(v) { prefs.keepInBackground = v }
 
             override fun link(host: String, port: Int) {
-                if (prefs.model == "c3") prefs.c3Host = host else prefs.host = host
+                prefs.c3Host = host
                 prefs.port = port
                 if (prefs.useBle && !ensureBlePermissions { link(host, port) }) return
                 prefs.linkOn = true
                 LinkService.start(activity)         // connects (or reconnects to a new host/port)
             }
 
-            override fun setModel(model: String) {
-                if (model == prefs.model) return
-                prefs.model = model
-                AppState.model = model
-                if (prefs.linkOn) {
-                    if (prefs.useBle && !ensureBlePermissions { LinkService.start(activity) }) return
-                    LinkService.start(activity)     // reconnect the right way for this device
-                }
-            }
-
             override fun setLinkMode(mode: String) {
                 if (mode == prefs.linkMode) return
                 if (mode == "ble" && !ensureBlePermissions { setLinkMode(mode) }) return
-                if (DeskBuddyClient.connected && AppState.isC3) {
+                if (DeskBuddyClient.connected) {
                     // ask the C3 to switch radios; LinkService follows it after it restarts
                     DeskBuddyClient.set("link", mode, save = true)
                     toast(if (mode == "ble") "DeskBuddy is switching to Bluetooth..." else "DeskBuddy is switching to WiFi...")
@@ -89,7 +78,7 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun changeWifi() {
-                if (!DeskBuddyClient.connected || !AppState.isC3) {
+                if (!DeskBuddyClient.connected) {
                     toast("Link DeskBuddy first, or hold BTN2 on DeskBuddy and tap RESET")
                     return
                 }
@@ -102,9 +91,9 @@ class MainActivity : ComponentActivity() {
                 when {
                     !DeskBuddyClient.connected ->
                         toast("Cleared in the app. DeskBuddy isn't linked, so its own list stays")
-                    AppState.isC3 && DeviceFw.supportsClear(AppState.fw) ->
+                    DeviceFw.supportsClear(AppState.fw) ->
                         DeskBuddyClient.clearNotifications()      // DeskBuddy clears; its new state follows
-                    AppState.isC3 ->
+                    else ->
                         toast("Cleared in the app. Update DeskBuddy to firmware 2.3.1 to clear it too (or hold BTN2)")
                 }
             }
@@ -115,16 +104,22 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun find(onFound: (String, Int) -> Unit) {
-                discovery.find(onFound, if (prefs.model == "c3") "c3" else null) { msg -> toast(msg) }
+                discovery.find(onFound, "c3") { msg -> toast(msg) }
             }
 
             override fun openNotificationAccess() {
                 startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             }
 
-            override fun speak(text: String) {
-                if (!DeskBuddyClient.connected) toast("Not linked to DeskBuddy") else tts.speak(text)
+            override fun allowAnsweringCalls() {
+                requestPermissions(arrayOf(Manifest.permission.ANSWER_PHONE_CALLS), REQ_CALLS)
             }
+
+            override fun checkUpdate() = OtaUpdater.check()
+            override fun startUpdate(password: String) = OtaUpdater.update(password)
+            override fun cancelUpdate() = OtaUpdater.cancel()
+            override fun setUpdatePassword(password: String) = OtaUpdater.setPassword(password)
+            override fun changeUpdatePassword(old: String, new: String) = OtaUpdater.changePassword(old, new)
 
             override fun setTheme(theme: String) {
                 prefs.theme = theme
@@ -140,6 +135,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         AppState.notifAccess = notificationAccessGranted()
+        AppState.canAnswerCalls = checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED
         // LINK is on but the service stopped (app was swiped away with "stay connected" off,
         // or it gave up searching): reconnect now that the user is back in the app
         if (prefs.linkOn && !LinkService.running) {
@@ -149,7 +145,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         discovery.stop()
-        tts.shutdown()
         super.onDestroy()
     }
 
@@ -182,6 +177,11 @@ class MainActivity : ComponentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_CALLS) {
+            AppState.canAnswerCalls = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            if (!AppState.canAnswerCalls) toast("Without it, SIM calls are answered on the phone; other apps' calls may still work")
+            return
+        }
         if (requestCode != REQ_BLE) return
         val then = afterBlePermission
         afterBlePermission = null

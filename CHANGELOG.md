@@ -3,6 +3,40 @@
 All notable changes to DeskBuddy C3 are listed here. Versions follow the firmware `FW_VERSION`
 (`c3-X.Y.Z` → tag `vX.Y.Z`).
 
+## [2.5.0] - 2026-10-28
+
+### New: Update DeskBuddy from the phone (no PC), with a password + BTN1
+- **Setup → Update DeskBuddy** in the app (0.6.0) finds the newest release on GitHub, downloads the update image for
+  your build, checks it against the release's `SHA256SUMS` and sends it over Bluetooth or WiFi with a progress bar
+  (about a minute over Bluetooth). **Reinstall over the air** sends the same version again, handy for testing.
+- Two locks: the **update password** (set it in the app, DeskBuddy asks for BTN1 to save it; change it with the old
+  one) and **BTN1 on DeskBuddy** for every update ("Update DeskBuddy?", BTN2 = no, 30 s). The password never leaves
+  the phone: DeskBuddy sends a random challenge and the app answers with an HMAC-SHA256 proof that also covers the
+  image's SHA-256. 3 wrong passwords lock updates for a minute. Forgot it? `otapass clear` over USB.
+- Safe by design: chunks are numbered and acknowledged; the image is only made bootable if every byte arrived and its
+  SHA-256 matches. Wrong password, link lost, 20 s of silence, Cancel or a long BTN2 leave the old firmware running.
+  Over Bluetooth both sides ask for a fast connection while it runs.
+- New serial commands `otapass`, `otapass set <password>`, `otapass clear`. DeskBuddy.exe never saves an
+  `otapass set` line in its command history.
+- Releases now carry the update images `deskbuddy-c3-ota-<usb|battery>-vX.Y.Z.bin` (in `SHA256SUMS`, and under
+  `ota_images` in `manifest.json`). `hello` / `state` say which `build` DeskBuddy runs and whether `ota_pass` is set.
+- Removed: ArduinoOTA and the `pio run -e ota` upload (WiFi only, no password).
+- **Once:** install 2.5.0 over USB (DeskBuddy.exe or `deskbuddy flash`). From then on updates can come from the app.
+
+### New: calls on DeskBuddy
+- When a call rings (the phone app's, WhatsApp's, ...), DeskBuddy shows the caller, blinks yellow and rings.
+  **BTN1 answers, BTN2 declines**; during the call it shows "On call" with the time: BTN1 hides it, BTN2 hangs up. You
+  talk on the phone (DeskBuddy C3 has no microphone or speaker).
+- App: Inbox → **Calls** (on by default). For SIM calls tap **Allow** once (Android's "answer phone calls" permission).
+  Other apps' calls are answered through their notification's buttons.
+
+### Changed: the app is for DeskBuddy C3 only (Android app 0.6.0)
+- The DeskBuddy v2 parts are gone: the Voice tab (push-to-talk, text-to-speech), weather, Pomodoro and the device-type
+  switch. The app is smaller and the Setup screen shorter.
+- **Release APKs are signed with one fixed key** (kept in GitHub secrets, never in the repository), so from now on a new
+  APK installs over the old one and keeps your settings. **Once, for 0.6.0:** uninstall the old app first (it was
+  signed with a different key). The APK is now `deskbuddy-app-vX.Y.Z.apk` (a release build).
+
 ## [2.4.1] - 2026-10-27
 
 ### New: DeskBuddy.exe (and `deskbuddy ui`) in the same pink look as the phone app

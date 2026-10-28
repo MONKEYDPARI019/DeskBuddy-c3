@@ -32,6 +32,8 @@ const Note S_ERROR[]      = {{622, 120}, {0, 40}, {466, 180}};
 const Note S_SILENT_ON[]  = {{1760, 60}, {1319, 90}};
 const Note S_SILENT_OFF[] = {{1319, 60}, {1760, 90}};
 const Note S_LOW_BAT[]    = {{988, 150}, {0, 80}, {740, 250}};
+const Note S_RING[]       = {{1760, 50}, {1397, 50}, {1760, 50}, {1397, 50}, {1760, 50}, {1397, 50},
+                             {0, 120}, {1760, 50}, {1397, 50}, {1760, 50}, {1397, 50}, {1760, 50}, {1397, 50}};
 
 struct Melody { const char* name; const Note* notes; uint8_t count; };
 #define M(n, a) {n, a, (uint8_t)(sizeof(a) / sizeof(a[0]))}
@@ -41,6 +43,7 @@ const Melody MELODIES[(int)Sound::Count] = {
     M("mood", S_MOOD), M("happy", S_HAPPY), M("sad", S_SAD), M("surprised", S_SURPRISED),
     M("purr", S_PURR), M("link", S_LINK), M("error", S_ERROR),
     M("silent_on", S_SILENT_ON), M("silent_off", S_SILENT_OFF), M("low_battery", S_LOW_BAT),
+    M("ring", S_RING),
 };
 #undef M
 

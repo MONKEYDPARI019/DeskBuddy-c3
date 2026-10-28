@@ -20,6 +20,7 @@
 #include "protocol.h"
 #include "cli.h"
 #include "face.h"
+#include "ota.h"
 
 static void replyToApp(const char* json) { linkSend(json); }
 
@@ -40,6 +41,7 @@ void setup() {
     Serial.printf("\n\n=== %s %s (%s build) ===\n", FW_NAME, FW_VERSION, FEATURE_BATTERY ? "battery" : "USB");
 
     settingsLoad();
+    otaBegin();                                // the update password (NVS)
     ledsBegin();
     buttonsBegin();
     batteryBegin();
@@ -96,6 +98,7 @@ void loop() {
 
     batteryUpdate();
     appLoop();
+    otaLoop();
     buzzerUpdate();
     oledService();
 

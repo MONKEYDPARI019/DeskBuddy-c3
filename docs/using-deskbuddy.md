@@ -31,6 +31,8 @@ Press **BTN2** to move through the screens. DeskBuddy always starts on Mochi.
 | **BTN2** | Next screen | ~1 s: clear all notifications |
 | **BTN1 + BTN2 while pressing RESET** (or switching on) | Switch radio: Bluetooth ↔ WiFi. Keep holding until the screen says "Bluetooth mode" or "WiFi mode". | |
 
+- **A call ringing** (firmware 2.5.0+, see [Phone app → Calls](phone-app.md#calls-on-deskbuddy)): **BTN1** answers, **BTN2** declines. During the call: BTN1 hides the call screen, BTN2 hangs up.
+- **"Update DeskBuddy?"** (an update or a new update password from the app): **BTN1** yes, **BTN2** no. While it updates, a long **BTN2** cancels it.
 - **Sleep:** after 2 minutes without a press or a notification, Mochi falls asleep and the screen dims. **The first press only wakes him up**, and the next press does its normal job.
 - **Battery build, switched off:** hold **BTN1 for 3 s** to switch on.
 
@@ -41,9 +43,10 @@ Press **BTN2** to move through the screens. DeskBuddy always starts on Mochi.
 | **Red** solid | Silent mode is on |
 | **Red** fast blink | Battery low (battery build) |
 | **Yellow** on | Unread notifications. Goes off when you open the inbox. |
+| **Yellow** fast blink | A call is ringing |
 | **Green** solid (optional LED) | The app is connected |
 | **Green** short flash every 2 s | Waiting for the app |
-| **Green** fast blink | WiFi setup portal is open |
+| **Green** fast blink | WiFi setup portal is open, or a firmware update is running |
 
 All LEDs are off while Mochi sleeps. They can be turned off completely with `set leds 0`. With no notifications and sound on, it's normal for red and yellow to be dark.
 
@@ -137,6 +140,9 @@ Use them with `deskbuddy monitor` (interactive) or `deskbuddy cmd "<command>"` (
 | `app <json>` | Handle one app message, e.g. `app {"type":"notify","app":"Test","title":"Hi","body":"hello"}` |
 | `wifi setup` | Change WiFi: restart into the setup portal, keeping the old network as a fallback |
 | `wifi forget` | Erase the saved WiFi network |
+| `otapass` | Is an update password set? (2.5.0+) |
+| `otapass set <password>` | Set the update password here (4–63 characters). DeskBuddy.exe never saves this line in its command history. |
+| `otapass clear` | Remove a forgotten update password, then set a new one in the app |
 | `echo <text>` | Print `<text>` (the PC tool uses it to see where a reply ends) |
 | `stress <n> [gap ms]` | Click BTN1 n times in software, one every gap ms (default 400): a load test, see `scripts/board_stress_test.py` |
 | `off` | Power off (battery build) |

@@ -5,7 +5,9 @@
 
 For each PlatformIO env (c3, c3-battery): runs `pio run -e <env>`, reads the flash layout from
 `pio project metadata`, merges bootloader + partitions + boot_app0 + app with esptool into
-<out_dir>/deskbuddy-c3-<env>-v<semver>.bin, then (re)writes <out_dir>/SHA256SUMS and manifest.json.
+<out_dir>/deskbuddy-c3-<env>-v<semver>.bin, copies the app-only image for updates from the phone
+app to <out_dir>/deskbuddy-c3-ota-<usb|battery>-v<semver>.bin, then (re)writes
+<out_dir>/SHA256SUMS and manifest.json.
 
 The logic lives in the deskbuddy tool (tool/src/deskbuddy/firmware.py) so the CLI's
 `deskbuddy build` and this script share one implementation. Needs: platformio, esptool.
@@ -52,6 +54,8 @@ def main(argv: list[str]) -> int:
             )
             version = merged.version
             print(f"==> {merged.path.name}  {merged.size} bytes  sha256 {merged.sha256}", flush=True)
+            ota = firmware.write_ota_image(merged, out_dir)
+            print(f"==> {ota.name}  {ota.stat().st_size} bytes (update from the phone app)", flush=True)
         assert version is not None
         sums, manifest = firmware.write_release_files(out_dir, version)
         print(f"==> wrote {sums} and {manifest}")

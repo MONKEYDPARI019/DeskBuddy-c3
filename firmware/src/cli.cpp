@@ -11,6 +11,7 @@
 #include "buttons.h"
 #include "link.h"
 #include "protocol.h"
+#include "ota.h"
 #include <Arduino.h>
 #include <sys/time.h>
 #include <esp_system.h>
@@ -47,7 +48,7 @@ static void help() {
         "                       surprised smug nervous cat sleeping cute default sleep\n"
         "notify <text>          fake a notification\n"
         "sound <name>           hello bye screen notify mood happy sad surprised purr\n"
-        "                       link error silent_on silent_off low_battery\n"
+        "                       link error silent_on silent_off low_battery ring\n"
         "time <unix seconds>    set the clock by hand\n"
         "test oled|leds|buzzer|buttons|battery\n"
         "i2c                    scan the I2C bus (OLED = 0x3C)\n"
@@ -58,6 +59,9 @@ static void help() {
         "echo <text>            print <text> (the PC tool uses it to see a reply is complete)\n"
         "wifi setup             change WiFi: restart into the setup portal (keeps the old one)\n"
         "wifi forget            erase the saved WiFi network\n"
+        "otapass                is an update password set?\n"
+        "otapass set <password> set it here (4-63 characters); the app can change it later\n"
+        "otapass clear          remove it (forgot it? then set a new one in the app)\n"
         "off                    power off (battery build)\n"
         "reboot\n\n");
 }
@@ -172,6 +176,7 @@ void cliRun(const char* in) {
     else if (!strcmp(cmd, "wifi") && !strcmp(a1, "forget")) { linkForgetWifi(); Serial.println("WiFi forgotten: the setup portal opens next time in WiFi mode"); }
     else if (!strcmp(cmd, "wifi") && !strcmp(a1, "setup")) appWifiSetup();
     else if (!strcmp(cmd, "wifi")) Serial.println("wifi setup|forget");
+    else if (!strcmp(cmd, "otapass")) otaCli(a1, a2);
     else if (!strcmp(cmd, "echo")) Serial.println(rest);   // the PC tool's "reply complete" marker
     else if (!strcmp(cmd, "stress")) {
         long n = atol(a1), gap = *a2 ? atol(a2) : 400;

@@ -58,7 +58,10 @@ class BleLink(
     private var mtu = 23
     private var backoffMs = 2000L
 
-    private val writeQueue = ArrayDeque<ByteArray>()
+    /** One BLE write. [quick]: without response (update chunks), when the device allows it. */
+    private class Piece(val bytes: ByteArray, val quick: Boolean)
+
+    private val writeQueue = ArrayDeque<Piece>()
     private var writing = false
     private val incoming = ByteLineSplitter()
     private var scansThisSearch = 0
@@ -97,8 +100,12 @@ class BleLink(
         onStatus(false, "disconnected")
     }
 
-    /** Queue one JSON message. Returns false if not connected. */
-    fun sendLine(json: String): Boolean {
+    /**
+     * Queue one JSON message. Returns false if not connected. [quick]: write without response
+     * (several packets per connection event instead of one): used for update chunks, which
+     * DeskBuddy acknowledges itself ({"type":"ota_ack"}).
+     */
+    fun sendLine(json: String, quick: Boolean = false): Boolean {
         val g = gatt ?: return false
         if (!ready) return false
         val bytes = (json + "\n").toByteArray(Charsets.UTF_8)
@@ -107,12 +114,23 @@ class BleLink(
             var i = 0
             while (i < bytes.size) {
                 val end = (i + chunk).coerceAtMost(bytes.size)
-                writeQueue.add(bytes.copyOfRange(i, end))
+                writeQueue.add(Piece(bytes.copyOfRange(i, end), quick))
                 i = end
             }
         }
         pumpWrites(g)
         return true
+    }
+
+    /** During an update: the shortest connection interval Android offers (faster, more battery). */
+    fun setHighPriority(on: Boolean) {
+        val g = gatt ?: return
+        if (!ready) return
+        try {
+            g.requestConnectionPriority(
+                if (on) BluetoothGatt.CONNECTION_PRIORITY_HIGH else BluetoothGatt.CONNECTION_PRIORITY_BALANCED
+            )
+        } catch (_: Exception) { /* only a speed-up */ }
     }
 
     // ------------------------------------------------------------------ scan
@@ -262,26 +280,29 @@ class BleLink(
 
     private fun pumpWrites(g: BluetoothGatt) {
         val c = rx ?: return
-        val next: ByteArray
+        val next: Piece
         synchronized(writeQueue) {
             if (writing || writeQueue.isEmpty()) return
             next = writeQueue.poll() ?: return
             writing = true
         }
+        val canQuick = c.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0
+        val type = if (next.quick && canQuick) BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                   else BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         val ok = if (Build.VERSION.SDK_INT >= 33) {
-            g.writeCharacteristic(c, next, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothGatt.GATT_SUCCESS
+            g.writeCharacteristic(c, next.bytes, type) == BluetoothGatt.GATT_SUCCESS
         } else {
             @Suppress("DEPRECATION")
-            c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            c.writeType = type
             @Suppress("DEPRECATION")
-            c.value = next
+            c.value = next.bytes
             @Suppress("DEPRECATION")
             g.writeCharacteristic(c)
         }
         if (!ok) {
-            // the stack was busy: put it back and try again shortly
+            // the stack was busy: put it back and try again shortly (quick writes free up fast)
             synchronized(writeQueue) { writeQueue.addFirst(next); writing = false }
-            handler.postDelayed({ gatt?.let { pumpWrites(it) } }, 30)
+            handler.postDelayed({ gatt?.let { pumpWrites(it) } }, if (next.quick) 5L else 30L)
         }
     }
 }

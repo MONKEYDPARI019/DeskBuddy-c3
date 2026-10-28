@@ -41,7 +41,7 @@ Pick whichever you like:
   3. Click **Upload**, then use PlatformIO's **Serial Monitor** (plug icon).
 - **PlatformIO CLI:** `cd firmware`, then `pio run -e c3 -t upload` and `pio device monitor`.
 
-**Over WiFi (OTA):** with the board in WiFi mode on the same network, run `cd firmware` then `pio run -e ota -t upload`. It uploads to `deskbuddy-c3.local`; the board shows a progress bar while it updates.
+**Without a cable (2.5.0+):** the phone app's **Update DeskBuddy** sends a release's update image over Bluetooth or WiFi, with the update password and a BTN1 press on the board (see [PROTOCOL.md](../firmware/docs/PROTOCOL.md#updates-from-the-app)). The old `pio run -e ota` (ArduinoOTA, no password, WiFi only) is gone. To try your own build that way, make a release (below).
 
 ### Architecture
 
@@ -55,13 +55,14 @@ One main loop does everything, in a fixed order: serial commands → radio → i
 | `oled.*` | OLED probe at 100 kHz with retries; re-check every 3 s, re-init after a blip |
 | `ui.*` | Draws the screens, popups and overlays (reads state, changes nothing) |
 | `face.*` | Mochi: moods, states, blinking, gaze, animations |
-| `app.*` | Behaviour: screens, notifications, sleep, LEDs, state pushes, link switching, power-off |
+| `app.*` | Behaviour: screens, notifications, calls, sleep, LEDs, state pushes, link switching, power-off |
+| `ota.*` | Updates from the app: password (NVS namespace `dbc3ota`), BTN1 question, writing the image with `Update` |
 | `protocol.*` | JSON messages with the app (ArduinoJson 7) |
 | `link.*`, `link_ble.cpp`, `link_wifi.cpp` | One interface over both radios, plus the inbox queue |
 | `buttons.*`, `leds.*`, `buzzer.*` | Debounced buttons, LED patterns, non-blocking melodies (LEDC) |
 | `battery.*`, `power.*` | Battery reading and deep-sleep power switch (compiled out in the USB build) |
 | `cli.*` | Serial command line |
-| `logic/` | `framing.h` (BLE line framing), `text.h` (UTF-8 → ASCII, word wrap), `notif_store.h`, `tz.h`, `battery_curve.h` |
+| `logic/` | `framing.h` (BLE line framing), `text.h` (UTF-8 → ASCII, word wrap), `notif_store.h`, `tz.h`, `battery_curve.h`, `ota_core.h` (update rules), `sha256.h`, `codec.h` (hex, base64), `call_state.h` |
 
 ### Pinned versions
 
@@ -165,7 +166,7 @@ On Linux the same command writes `dist/DeskBuddy-linux-x64` (useful for testing 
 - builds both firmware envs;
 - runs the host tests;
 - runs ruff, mypy and pytest for the tool on Ubuntu and Windows, with Python 3.9 and 3.12;
-- runs the Android app's unit tests and builds the debug APK (`./gradlew testDebugUnitTest assembleDebug` in `app/`, JDK 17), kept as the `app-debug-apk` artifact for 14 days.
+- runs the Android app's unit tests (including `OtaCryptoTest`, which must give the same numbers as the firmware's host tests) and builds the debug APK (`./gradlew testDebugUnitTest assembleDebug` in `app/`, JDK 17), kept as the `app-debug-apk` artifact for 14 days.
 
 **`app.yml`** (pushes that touch `tool/`, `npm/` or `scripts/build_app.py`, and every release):
 - runs the npm launcher's tests on Windows, Linux and macOS with Node 18 and 24, including a check that `npm/package.json`, the tool's `__version__` and `FW_VERSION` agree;
@@ -178,7 +179,7 @@ On Linux the same command writes `dist/DeskBuddy-linux-x64` (useful for testing 
 1. Checks that the tag matches `FW_VERSION`, the tool's `__version__` **and** `npm/package.json`.
 2. Builds both firmware envs with `scripts/merge_firmware.py`, and the ready-made programs with `app.yml`.
 3. Takes the release notes from `CHANGELOG.md`.
-4. Publishes the GitHub Release with the firmware images, the program archives, `DeskBuddy.exe`, `SHA256SUMS` (covering all of them) and `manifest.json`.
+4. Publishes the GitHub Release with the firmware images, the update images for the app (`deskbuddy-c3-ota-<usb|battery>-vX.Y.Z.bin`), the program archives, `DeskBuddy.exe`, the signed APK, `SHA256SUMS` (covering all of them) and `manifest.json`.
 5. Publishes the npm package, if you switched that on (below).
 
 ### Cutting a release
@@ -198,7 +199,28 @@ The whole project shares one version number.
    ```
 5. When the release workflow finishes, check that `deskbuddy versions` lists it, `deskbuddy flash` installs it, and, if npm publishing is on, `npm view deskbuddy-c3 version` shows it.
 
-`manifest.json` lists, for each firmware build, `env`, `build`, `file`, `sha256`, `size`, `chip` and `offset`, plus the release `version` and `tool_min_version`.
+`manifest.json` lists, for each firmware build, `env`, `build`, `file`, `sha256`, `size`, `chip` and `offset`, plus the release `version` and `tool_min_version`. Since 2.5.0 `ota_images` lists the update images (`env`, `build`, `file`, `sha256`, `size`).
+
+### The app's signing key
+
+Android only installs a new APK over the old one when both are signed with the same key. Releases sign the APK with a
+key kept in three repository secrets; the key never goes into the repository. Set it up once:
+
+1. Make the key (any PC with Java; keep the file and the password safe, and back them up. Without them, people must
+   uninstall the app once more to get updates):
+   ```bash
+   keytool -genkeypair -v -keystore deskbuddy-release.jks -alias deskbuddy -keyalg RSA -keysize 2048 -validity 10000
+   ```
+2. Turn it into text: PowerShell `[Convert]::ToBase64String([IO.File]::ReadAllBytes("deskbuddy-release.jks")) | Set-Clipboard`
+   (Linux/macOS: `base64 -w0 deskbuddy-release.jks`).
+3. GitHub → the repository → **Settings → Secrets and variables → Actions → New repository secret**:
+   - `DESKBUDDY_KEYSTORE_BASE64`: the text from step 2;
+   - `DESKBUDDY_KEYSTORE_PASSWORD`: the keystore password (used for the key too);
+   - `DESKBUDDY_KEY_ALIAS`: `deskbuddy`.
+
+`release.yml` writes the key to a temporary file, runs `./gradlew assembleRelease` (the signing config in
+`app/app/build.gradle.kts` reads `DESKBUDDY_KEYSTORE*` from the environment) and deletes the file. Without the secrets
+the release still builds, with a warning, and the APK is signed with a throwaway key. Local builds use your debug key.
 
 ### Publishing to npm
 
@@ -230,9 +252,9 @@ or more (`status` reports the longest loop). Firmware 2.2.1 took ~23 s here: a 0
 
 ## Known limitations / ideas
 
-- OTA flashing isn't in the tool yet; use `pio run -e ota -t upload`.
+- Updating over the air is in the phone app only (not in the `deskbuddy` tool).
 - The Python tool isn't on PyPI yet; install it from GitHub (or use the npm package).
 - The ready-made programs aren't code-signed. Downloads through npm don't trigger Windows SmartScreen or macOS Gatekeeper (those only check files downloaded by a browser), but an antivirus may scan them on first run.
-- The APK in the releases is a debug build (signed with the CI's debug key): Android asks to uninstall an app built on another PC before installing it.
+- An APK you build yourself is signed with your own debug key, so it can't install over a release APK (or the other way round) without an uninstall.
 - Linux has only been tested in CI, not with a real board.
 - Hardening: protect `v*` tags, add a protected environment for the release job, and pin GitHub Actions to commit SHAs.

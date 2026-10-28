@@ -4,7 +4,7 @@
 
 This repo has everything: the firmware, the Android app, and **`deskbuddy`**, a command-line tool and installer window that downloads, flashes and monitors the board. On Windows the installer window is also a double-click app, **DeskBuddy.exe**. You don't need PlatformIO or the Arduino IDE.
 
-> DeskBuddy C3 is the pocket sibling of [DeskBuddy v2](https://github.com/MONKEYDPARI019/DeskBuddy-v2), the desk version on a full ESP32 with a microphone and speaker. The same app drives both.
+> DeskBuddy C3 is the pocket sibling of [DeskBuddy v2](https://github.com/MONKEYDPARI019/DeskBuddy-v2), the desk version on a full ESP32 with a microphone and speaker. Since 2.5.0 the Android app here is for the C3 only.
 
 <!-- Add a photo or GIF of your DeskBuddy here, e.g. ![DeskBuddy C3](docs/images/deskbuddy-c3.jpg) -->
 
@@ -86,7 +86,7 @@ Full wiring and the battery circuit are in [docs/hardware.md](docs/hardware.md).
 
 ```
 firmware/   ESP32-C3 firmware (PlatformIO, Arduino core 3.3.6)
-app/        Android app (Kotlin, Jetpack Compose), shared with DeskBuddy v2
+app/        Android app (Kotlin, Jetpack Compose)
 tool/       the `deskbuddy` command-line tool + installer window (Python)
 scripts/    release build helper (merged firmware images)
 docs/       these guides

@@ -1,6 +1,6 @@
 {
   "name": "deskbuddy-c3",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "description": "Install, erase and monitor DeskBuddy C3 (ESP32-C3) firmware from the command line. No Python needed.",
   "keywords": [
     "deskbuddy",

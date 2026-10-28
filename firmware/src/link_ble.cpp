@@ -20,13 +20,18 @@ static volatile uint16_t mtu = 23;
 static bool running = false;
 static LineAssembler<MAX_LINE> rxLines;        // only used in the NimBLE host task
 
+// connection interval in 1.25 ms units, supervision timeout in 10 ms units
+constexpr uint16_t NORMAL_MIN = 24, NORMAL_MAX = 48, NORMAL_LATENCY = 4;   // 30-60 ms: frugal
+constexpr uint16_t FAST_MIN = 6, FAST_MAX = 12;                            // 7.5-15 ms, no latency: updates
+constexpr uint16_t SUPERVISION = 400;
+
 class ServerCb : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* s, NimBLEConnInfo& info) override {
         clients = 1;
         mtu = 23;
         rxLines.reset();
         // 30-60 ms interval, latency 4, 4 s supervision timeout: quick but frugal
-        s->updateConnParams(info.getConnHandle(), 24, 48, 4, 400);
+        s->updateConnParams(info.getConnHandle(), NORMAL_MIN, NORMAL_MAX, NORMAL_LATENCY, SUPERVISION);
         Serial.printf("[BLE] phone connected (%s)\n", info.getAddress().toString().c_str());
     }
     void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int reason) override {
@@ -100,6 +105,16 @@ void bleSend(const char* json) {
         }
         failed = true;                             // drop the rest; the app asks again
     });
+}
+
+// During an update the phone sends ~1.4 MB: ask for the shortest interval and no slave latency
+// (with latency 4 every write could wait up to 5 intervals). Back to frugal afterwards.
+void bleFast(bool on) {
+    if (!server || !clients) return;
+    for (uint16_t h : server->getPeerDevices()) {
+        if (on) server->updateConnParams(h, FAST_MIN, FAST_MAX, 0, SUPERVISION);
+        else    server->updateConnParams(h, NORMAL_MIN, NORMAL_MAX, NORMAL_LATENCY, SUPERVISION);
+    }
 }
 
 int bleClients() { return clients; }

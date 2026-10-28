@@ -24,6 +24,7 @@ bool        linkTimeFromNetwork();             // WiFi: NTP time arrived
 void        linkForgetWifi();                  // erase saved WiFi credentials
 void        linkRequestWifiSetup();            // next start in WiFi mode opens the setup portal
 void        linkShutdown();                    // before restart / deep sleep
+void        linkFast(bool on);                 // Bluetooth: short connection interval during an update
 
 // shared by the two radios (link.cpp)
 bool inboxPush(const char* line, size_t len);  // safe from any task
@@ -31,7 +32,7 @@ void inboxBegin();
 
 // radio implementations
 void bleBegin();   void bleService();   void bleSend(const char*);  int bleClients();
-void bleStop();    LinkState bleState(); String bleAddress();
+void bleStop();    LinkState bleState(); String bleAddress(); void bleFast(bool on);
 void wifiBegin();  void wifiService();  void wifiSend(const char*); int wifiClients();
 void wifiStop();   LinkState wifiState(); String wifiAddress(); int wifiRssi();
 bool wifiTimeSynced(); void wifiForget(); void wifiRequestSetup(); void wifiClearSetupRequest();

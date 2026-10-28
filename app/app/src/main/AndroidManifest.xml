@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- BTN1 / BTN2 on DeskBuddy answer, decline and hang up SIM calls (asked for in the app) -->
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
 
     <!-- Bluetooth LE link to DeskBuddy C3 -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -37,7 +39,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Keeps the WebSocket to DeskBuddy alive in the background -->
+        <!-- Keeps the link to DeskBuddy alive in the background -->
         <service
             android:name=".LinkService"
             android:exported="false"

@@ -81,16 +81,20 @@ class PendingNotifs<T>(private val max: Int = 5, private val maxAgeMs: Long = 12
     }
 }
 
-/** What the connected DeskBuddy's firmware ("fw" in hello/state, e.g. "c3-2.3.1") understands. */
+/** What the connected DeskBuddy's firmware ("fw" in hello/state, e.g. "c3-2.5.0") understands. */
 object DeviceFw {
-    private val C3 = Regex("""^c3-(\d+)\.(\d+)\.(\d+)""")
+    private val C3 = Regex("""^c3-\d+\.\d+\.\d+""")
+
+    private fun c3AtLeast(fw: String, version: String) = C3.containsMatchIn(fw) && FwVersion.atLeast(fw, version)
 
     /** {"type":"clear"} exists since DeskBuddy C3 firmware 2.3.1; older ones answer "unknown type". */
-    fun supportsClear(fw: String): Boolean {
-        val m = C3.find(fw) ?: return false
-        val (major, minor, patch) = m.destructured.toList().map { it.toInt() }
-        return compareValues(major * 1_000_000L + minor * 1_000L + patch, 2_003_001L) >= 0
-    }
+    fun supportsClear(fw: String): Boolean = c3AtLeast(fw, "2.3.1")
+
+    /** 2.5.0: "Update DeskBuddy" from the app. Older firmware needs one install over USB first. */
+    fun supportsOta(fw: String): Boolean = c3AtLeast(fw, "2.5.0")
+
+    /** 2.5.0: calls on DeskBuddy ({"type":"call"}, BTN1 answers, BTN2 declines). */
+    fun supportsCalls(fw: String): Boolean = c3AtLeast(fw, "2.5.0")
 }
 
 /**

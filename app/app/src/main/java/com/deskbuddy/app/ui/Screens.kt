@@ -1,11 +1,9 @@
 package com.deskbuddy.app.ui
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,20 +28,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deskbuddy.app.AppState
 import com.deskbuddy.app.DeskBuddyClient
+import com.deskbuddy.app.DeviceFw
+import com.deskbuddy.app.FwVersion
+import com.deskbuddy.app.OtaRules
 import com.deskbuddy.app.R
 import kotlin.math.roundToInt
 
@@ -52,19 +46,24 @@ interface Actions {
     val host: String
     val port: Int
     var forward: Boolean
-    var echo: Boolean
     var keepInBackground: Boolean        // keep the link alive after the app is swiped away
+    var callsOn: Boolean                 // show phone calls on DeskBuddy (firmware 2.5.0+)
     fun link(host: String, port: Int)
     fun stop()
     fun find(onFound: (String, Int) -> Unit)
     fun openNotificationAccess()
-    fun speak(text: String)
+    fun allowAnsweringCalls()            // ANSWER_PHONE_CALLS, for SIM calls
     fun setTheme(theme: String)
     fun setBlocked(app: String, blocked: Boolean)
-    fun setModel(model: String)          // "v2" (ESP32 desk) | "c3" (ESP32-C3 pocket)
-    fun setLinkMode(mode: String)        // C3 only: "ble" | "wifi"
-    fun changeWifi()                     // C3 only: restart into the WiFi setup portal
-    fun clearNotifications()             // the app's list, and DeskBuddy's (C3 firmware 2.3.1+)
+    fun setLinkMode(mode: String)        // "ble" | "wifi"
+    fun changeWifi()                     // restart DeskBuddy into the WiFi setup portal
+    fun clearNotifications()             // the app's list, and DeskBuddy's (firmware 2.3.1+)
+    // "Update DeskBuddy" (firmware 2.5.0+), see OtaUpdater
+    fun checkUpdate()
+    fun startUpdate(password: String)
+    fun cancelUpdate()
+    fun setUpdatePassword(password: String)
+    fun changeUpdatePassword(old: String, new: String)
 }
 
 @Composable
@@ -122,47 +121,26 @@ fun HomeScreen(actions: Actions, goSetup: () -> Unit) {
                 )
             }
             Segmented(
-                if (AppState.isC3) listOf("clock" to "Clock", "mochi" to "Mochi", "notify" to "Inbox")
-                else listOf("clock" to "Clock", "weather" to "Wthr", "mochi" to "Mochi", "notify" to "Inbox", "pomodoro" to "Pomo"),
+                listOf("clock" to "Clock", "mochi" to "Mochi", "notify" to "Inbox"),
                 AppState.screen
             ) { id -> AppState.screen = id; DeskBuddyClient.screen(id) }
         }
-        if (AppState.isC3) {
-            // DeskBuddy C3: link + battery instead of WiFi bars + weather
-            val ble = AppState.linkMode == "ble"
-            TileRow { m ->
-                StatTile(if (ble) R.drawable.ic_bluetooth else R.drawable.ic_wifi, "Link", c.sky, m) {
-                    TileValue(if (ble) "Bluetooth" else "WiFi", if (ble) null else AppState.ip)
-                }
-                StatTile(R.drawable.ic_battery, "Battery", c.mint, m) {
-                    TileValue(when {
-                        !AppState.connected -> "--"
-                        AppState.bat < 0 -> "USB"
-                        else -> "${AppState.bat}%"
-                    })
-                }
+        val ble = AppState.linkMode == "ble"
+        TileRow { m ->
+            StatTile(if (ble) R.drawable.ic_bluetooth else R.drawable.ic_wifi, "Link", c.sky, m) {
+                TileValue(if (ble) "Bluetooth" else "WiFi", if (ble) null else AppState.ip)
             }
-            TileRow { m ->
-                StatTile(R.drawable.ic_mail, "Unread", c.butter, m) { TileValue("${AppState.unread}") }
-                StatTile(R.drawable.ic_chip, "Device", c.lavender, m) { TileValue("C3 Pocket", AppState.fw) }
+            StatTile(R.drawable.ic_battery, "Battery", c.mint, m) {
+                TileValue(when {
+                    !AppState.connected -> "--"
+                    AppState.bat < 0 -> "USB"
+                    else -> "${AppState.bat}%"
+                })
             }
-        } else {
-            TileRow { m ->
-                StatTile(R.drawable.ic_wifi, "Link", c.sky, m) { TileValue(AppState.ip.ifEmpty { actions.host }, size = 15.sp) }
-                StatTile(R.drawable.ic_wifi, "WiFi", c.mint, m) {
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WifiBars(if (AppState.connected) AppState.rssi else -200)
-                        HeadText(if (AppState.connected) "${AppState.rssi} dBm" else "--", 19.sp, maxLines = 1)
-                    }
-                }
-            }
-            TileRow { m ->
-                StatTile(R.drawable.ic_mail, "Unread", c.butter, m) { TileValue("${AppState.unread}") }
-                StatTile(R.drawable.ic_sun, "Weather", c.lavender, m) {
-                    val t = AppState.temp
-                    TileValue(if (t != null) "$t°C" else "--", AppState.city.ifEmpty { "set a city" })
-                }
-            }
+        }
+        TileRow { m ->
+            StatTile(R.drawable.ic_mail, "Unread", c.butter, m) { TileValue("${AppState.unread}") }
+            StatTile(R.drawable.ic_chip, "Device", c.lavender, m) { TileValue("C3 Pocket", AppState.fw) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ActionTile(
@@ -177,28 +155,6 @@ fun HomeScreen(actions: Actions, goSetup: () -> Unit) {
                 DeskBuddyClient.notify("DeskBuddy", "Ping", "Hello from the app")
             }
             ActionTile(R.drawable.ic_moon, "Zzz", Modifier.weight(1f)) { DeskBuddyClient.face("sleep") }
-        }
-    }
-}
-
-@Composable
-private fun WifiBars(rssi: Int) {
-    val c = LocalPal.current
-    val bars = when {
-        rssi >= -55 -> 4
-        rssi >= -65 -> 3
-        rssi >= -75 -> 2
-        rssi > -100 -> 1
-        else -> 0
-    }
-    Canvas(Modifier.size(26.dp, 20.dp)) {
-        val w = size.width / 15f
-        for (i in 0 until 4) {
-            val h = size.height * (i + 1) / 4f
-            drawRoundRect(
-                if (i < bars) c.ink else c.ink.copy(alpha = 0.2f),
-                Offset(i * 4 * w, size.height - h), Size(3 * w, h), CornerRadius(w)
-            )
         }
     }
 }
@@ -258,6 +214,7 @@ private fun MoodTile(id: String, on: Boolean, modifier: Modifier, onClick: () ->
 fun InboxScreen(actions: Actions) {
     val c = LocalPal.current
     var forward by remember { mutableStateOf(actions.forward) }
+    var callsOn by remember { mutableStateOf(actions.callsOn) }
     ScreenColumn {
         ScreenTitle("Inbox") {
             if (AppState.inbox.isNotEmpty() || (AppState.connected && AppState.deviceNotifs > 0)) {
@@ -284,6 +241,19 @@ fun InboxScreen(actions: Actions) {
                     15.sp, modifier = Modifier.weight(1f)
                 )
                 if (!AppState.notifAccess) KButton("Grant", kind = Kind.PRIMARY) { actions.openNotificationAccess() }
+            }
+        }
+        KCard("Calls") {
+            SettingRow("Show calls on DeskBuddy", callsOn) { callsOn = it; actions.callsOn = it }
+            BodyText(
+                "BTN1 answers, BTN2 declines (or hangs up). You talk on the phone: DeskBuddy has no mic or speaker. Needs DeskBuddy firmware 2.5.0.",
+                13.sp, c.sub
+            )
+            if (callsOn && !AppState.canAnswerCalls) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BodyText("Allow answering phone (SIM) calls", 15.sp, modifier = Modifier.weight(1f))
+                    KButton("Allow", kind = Kind.PRIMARY) { actions.allowAnsweringCalls() }
+                }
             }
         }
     }
@@ -316,109 +286,20 @@ private fun NotificationCard(app: String, title: String, body: String, time: Lon
     }
 }
 
-// ================================================================ VOICE (DeskBuddy v2 only)
-
-@Composable
-fun VoiceScreen(actions: Actions) {
-    val c = LocalPal.current
-    var holding by remember { mutableStateOf(false) }
-    var sayText by remember { mutableStateOf("Hello Parinith!") }
-    var echo by remember { mutableStateOf(actions.echo) }
-    val listening = holding || AppState.face == "listen"
-    if (AppState.isC3) {
-        ScreenColumn {
-            ScreenTitle("Voice")
-            KCard("Not on C3") {
-                BodyText("DeskBuddy C3 has no mic or speaker, so voice is only on the ESP32 desk version.", 14.sp, c.sub)
-                BodyText("Switch the device type in Setup to use voice.", 14.sp, c.sub)
-            }
-        }
-        return
-    }
-    ScreenColumn {
-        ScreenTitle("Voice") { Chip(if (AppState.mic) "Mic ready" else "Mic offline", if (AppState.mic) c.mint else c.surface2, if (AppState.mic) c.accent else c.sub) }
-        BodyText(
-            if (AppState.mic) "Hold the button below, or BTN3 on DeskBuddy." else "Fit the INMP441, then: set mic_en on",
-            14.sp, c.sub
-        )
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .width(220.dp)
-                    .height(110.dp)
-                    .background(c.oled, RoundedCornerShape(20.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                MochiFace(
-                    AppState.shown, if (holding) "listen" else AppState.face,
-                    Modifier.fillMaxHeight(0.8f).aspectRatio(2f, matchHeightConstraintsFirst = true)
-                )
-            }
-        }
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            val shape = RoundedCornerShape(32.dp)
-            val fg = if (listening) c.accentInk else c.ink
-            Column(
-                Modifier
-                    .size(250.dp, 132.dp)
-                    .glow(c, shape, if (listening) 2.dp else 8.dp)
-                    .background(if (listening) c.accent else c.surface, shape)
-                    .border(1.5.dp, if (listening) c.accent else c.line, shape)
-                    .semantics { role = Role.Button; contentDescription = "Hold to talk" }
-                    .pointerInput(Unit) {
-                        detectTapGestures(onPress = {
-                            holding = true
-                            DeskBuddyClient.ptt(true)
-                            tryAwaitRelease()
-                            holding = false
-                            DeskBuddyClient.ptt(false)
-                        })
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Glyph(R.drawable.ic_mic, 44.dp, fg)
-                HeadText(if (listening) "Listening..." else "Hold to talk", 18.sp, fg, Modifier.padding(top = 10.dp))
-            }
-        }
-        BodyText("Mochi is: ${faceLabel(AppState.face, AppState.shown)}", 14.sp, c.sub, Modifier.fillMaxWidth(), align = TextAlign.Center)
-        KCard("Make Mochi say") {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                KField(sayText, { sayText = it }, "Text", Modifier.weight(1f))
-                KButton("Say", kind = Kind.PRIMARY) { if (sayText.isNotBlank()) actions.speak(sayText) }
-            }
-            SettingRow("Echo test (repeat what I say)", echo) { echo = it; actions.echo = it }
-        }
-    }
-}
-
 // ================================================================ SETUP
 
 @Composable
 fun SetupScreen(actions: Actions) {
     val c = LocalPal.current
-    val c3 = AppState.isC3
-    val ble = c3 && AppState.linkMode == "ble"
-    var host by remember(AppState.model) { mutableStateOf(actions.host) }
+    val ble = AppState.linkMode == "ble"
+    var host by remember { mutableStateOf(actions.host) }
     var port by remember { mutableStateOf(actions.port.toString()) }
-    var city by remember { mutableStateOf(AppState.owmCity) }
     var forward by remember { mutableStateOf(actions.forward) }
     var keepBg by remember { mutableStateOf(actions.keepInBackground) }
     var note by remember { mutableStateOf("") }
     ScreenColumn {
         ScreenTitle("Setup")
-        KCard("Device type") {
-            Segmented(listOf("c3" to "C3 Pocket", "v2" to "v2 Desk"), AppState.model) { m ->
-                note = ""
-                actions.setModel(m)
-            }
-            BodyText(
-                if (c3) "DeskBuddy C3: clock, Mochi, notifications. Bluetooth or WiFi."
-                else "DeskBuddy v2: all screens, voice and weather. WiFi only.",
-                13.sp, c.sub
-            )
-        }
-        if (c3) KCard("Link") {
+        KCard("Link") {
             Segmented(listOf("ble" to "Bluetooth", "wifi" to "WiFi"), AppState.linkMode) { m -> actions.setLinkMode(m) }
             BodyText(
                 if (ble) "Works anywhere within about 10 m, best battery life."
@@ -439,7 +320,7 @@ fun SetupScreen(actions: Actions) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 KButton("Link", Modifier.weight(1f), Kind.PRIMARY) {
-                    actions.link(host.ifEmpty { if (c3) "deskbuddy-c3.local" else "deskbuddy.local" }, port.toIntOrNull() ?: 81)
+                    actions.link(host.ifEmpty { "deskbuddy-c3.local" }, port.toIntOrNull() ?: 81)
                 }
                 if (!ble) KButton("Find", Modifier.weight(1f)) {
                     note = "searching..."
@@ -455,9 +336,11 @@ fun SetupScreen(actions: Actions) {
                 13.sp, c.sub
             )
         }
+        UpdateCard(actions)
+        PasswordCard(actions)
         KCard("Device") {
             val volLevel = (AppState.volume / 10f).roundToInt().coerceIn(0, 10)
-            StepSlider(if (c3) "Buzzer" else "Volume", volLevel, "${AppState.volume}%") { i ->
+            StepSlider("Buzzer", volLevel, "${AppState.volume}%") { i ->
                 AppState.volume = i * 10
                 DeskBuddyClient.set("volume", i * 10)
             }
@@ -469,7 +352,7 @@ fun SetupScreen(actions: Actions) {
             }
             SettingRow("Silent mode", AppState.silent) { AppState.silent = it; DeskBuddyClient.set("silent", it) }
             SettingRow("Forward notifications", forward) { forward = it; actions.forward = it }
-            if (c3) KButton("Power off DeskBuddy", Modifier.fillMaxWidth(), Kind.OUTLINE) {
+            KButton("Power off DeskBuddy", Modifier.fillMaxWidth(), Kind.OUTLINE) {
                 DeskBuddyClient.send(org.json.JSONObject().put("type", "power_off"))
                 note = "powering off - hold BTN1 for 3 s to wake"
             }
@@ -485,18 +368,96 @@ fun SetupScreen(actions: Actions) {
             Segmented(listOf("light" to "Light", "dark" to "Dark", "auto" to "Auto"), AppState.theme) { actions.setTheme(it) }
             BodyText("Auto follows your phone's dark mode.", 13.sp, c.sub)
         }
-        if (!c3) {
-            KCard("Weather") {
-                KField(city, { city = it }, "City")
-                BodyText("One word works best, e.g. Bengaluru or Bangalore,IN", 13.sp, c.sub)
-            }
-            KButton("Save to DeskBuddy", Modifier.fillMaxWidth(), Kind.PRIMARY) {
-                if (city.isNotBlank()) DeskBuddyClient.set("owm_city", city.trim())
-                note = if (AppState.connected) "saved to DeskBuddy" else "not linked - nothing saved"
-            }
-        }
         if (AppState.fw.isNotEmpty()) {
-            BodyText("DeskBuddy firmware ${AppState.fw}", 12.sp, c.sub, Modifier.fillMaxWidth(), align = TextAlign.Center)
+            BodyText(
+                "DeskBuddy firmware ${AppState.fw}" + if (AppState.build.isNotEmpty()) " (${AppState.build} build)" else "",
+                12.sp, c.sub, Modifier.fillMaxWidth(), align = TextAlign.Center
+            )
         }
+    }
+}
+
+// ================================================================ UPDATE (firmware 2.5.0+)
+
+@Composable
+private fun UpdateCard(actions: Actions) {
+    val c = LocalPal.current
+    val fw = AppState.fw
+    KCard("Update DeskBuddy") {
+        BodyText(
+            if (fw.isEmpty()) "Link DeskBuddy to see its firmware."
+            else "DeskBuddy runs ${fw.removePrefix("c3-")}" + if (AppState.build.isNotEmpty()) " (${AppState.build} build)." else ".",
+            14.sp
+        )
+        if (fw.isNotEmpty() && !DeviceFw.supportsOta(fw)) {
+            BodyText(
+                "Install firmware 2.5.0 once with DeskBuddy.exe over USB. After that, updates come from here over Bluetooth or WiFi.",
+                13.sp, c.sub
+            )
+        } else {
+            UpdateControls(actions)
+        }
+    }
+}
+
+@Composable
+private fun UpdateControls(actions: Actions) {
+    val c = LocalPal.current
+    var password by remember { mutableStateOf("") }
+    val fw = AppState.fw
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        val latest = AppState.otaLatest
+        val cmp = if (latest.isEmpty()) null else FwVersion.compare(fw, latest)
+        if (latest.isEmpty()) {
+            KButton("Check for updates", Modifier.fillMaxWidth()) { if (!AppState.otaBusy) actions.checkUpdate() }
+        } else {
+            KField(password, { password = it }, "Update password", password = true)
+            KButton(
+                if (cmp != null && cmp < 0) "Update to v$latest" else "Reinstall v$latest over the air",
+                Modifier.fillMaxWidth(),
+                if (cmp != null && cmp < 0) Kind.PRIMARY else Kind.OUTLINE,
+            ) {
+                if (!AppState.otaBusy && password.isNotEmpty()) actions.startUpdate(password)
+            }
+        }
+        if (AppState.otaProgress >= 0f) KProgress(AppState.otaProgress)
+        if (AppState.otaStep.isNotEmpty()) BodyText(AppState.otaStep, 13.sp, c.sub)
+        if (AppState.otaBusy && AppState.otaProgress >= 0f) {
+            KButton("Cancel update", Modifier.fillMaxWidth(), Kind.OUTLINE) { actions.cancelUpdate() }
+        }
+        if (latest.isNotEmpty() && !AppState.otaBusy) {
+            BodyText("DeskBuddy asks you to press BTN1 before it starts. Its old firmware keeps running if anything goes wrong.", 12.sp, c.sub)
+        }
+    }
+}
+
+@Composable
+private fun PasswordCard(actions: Actions) {
+    val c = LocalPal.current
+    if (AppState.fw.isEmpty() || !DeviceFw.supportsOta(AppState.fw)) return
+    var old by remember { mutableStateOf("") }
+    var new by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    var problem by remember { mutableStateOf("") }
+    val set = AppState.otaPass
+    KCard(if (set) "Change update password" else "Set update password") {
+        BodyText(
+            if (set) "Needs the old password."
+            else "Only someone with this password (and a hand on BTN1) can update DeskBuddy. DeskBuddy asks you to press BTN1 to save it.",
+            13.sp, c.sub
+        )
+        if (set) KField(old, { old = it }, "Old password", password = true)
+        KField(new, { new = it }, "New password", password = true)
+        KField(again, { again = it }, "New password again", password = true)
+        if (problem.isNotEmpty()) BodyText(problem, 13.sp, c.accent, bold = true)
+        KButton(if (set) "Change password" else "Set password", Modifier.fillMaxWidth(), Kind.PRIMARY) {
+            problem = OtaRules.passwordProblem(new) ?: if (new != again) "The two new passwords differ" else ""
+            if (problem.isEmpty() && set && old.isEmpty()) problem = "Type the old password"
+            if (problem.isEmpty() && !AppState.otaBusy) {
+                if (set) actions.changeUpdatePassword(old, new) else actions.setUpdatePassword(new)
+                old = ""; new = ""; again = ""
+            }
+        }
+        if (set) BodyText("Forgot it? Plug DeskBuddy into a PC, open DeskBuddy.exe and send: otapass clear", 12.sp, c.sub)
     }
 }

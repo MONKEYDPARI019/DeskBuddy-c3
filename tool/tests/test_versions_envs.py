@@ -75,6 +75,17 @@ def test_friendly_names():
     assert envs.to_friendly("other") == "other"
 
 
+def test_update_image_names_are_not_flashable_images():
+    name = envs.ota_image_filename("c3-battery", "2.5.0")
+    assert name == "deskbuddy-c3-ota-battery-v2.5.0.bin"
+    assert envs.parse_ota_image_filename(name) == ("c3-battery", "2.5.0")
+    assert envs.parse_ota_image_filename(envs.ota_image_filename("c3", "2.5.0")) == ("c3", "2.5.0")
+    # the tool (also older ones) must never offer them for flashing
+    assert envs.parse_image_filename(name) is None
+    assert envs.parse_image_filename("deskbuddy-c3-ota-usb-v2.5.0.bin") is None
+    assert envs.parse_ota_image_filename("deskbuddy-c3-c3-v2.5.0.bin") is None
+
+
 def test_image_filename_round_trip():
     name = envs.image_filename("c3-battery", "2.0.0")
     assert name == "deskbuddy-c3-c3-battery-v2.0.0.bin"

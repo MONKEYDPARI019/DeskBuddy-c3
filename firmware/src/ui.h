@@ -3,5 +3,4 @@
 
 void uiRender();                                  // one frame
 void uiSplash(const char* title, const char* sub);
-void uiOtaProgress(int pct);                      // -1 = failed
 void uiTestPattern();

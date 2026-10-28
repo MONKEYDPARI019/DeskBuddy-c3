@@ -11,6 +11,9 @@ PIO_ENVS = tuple(ENV_MAP.values())
 CHIP = "esp32c3"
 
 _IMAGE_RE = re.compile(r"^deskbuddy-c3-(?P<env>c3(?:-battery)?)-v(?P<version>\d+\.\d+\.\d+[-+0-9A-Za-z.]*)\.bin$")
+# The app-only image the phone app sends over the air (2.5.0+). Named so that _IMAGE_RE, and so
+# older tools, never take it for a flashable image.
+_OTA_RE = re.compile(r"^deskbuddy-c3-ota-(?P<build>usb|battery)-v(?P<version>\d+\.\d+\.\d+[-+0-9A-Za-z.]*)\.bin$")
 
 
 def to_pio_env(name: str) -> str:
@@ -38,3 +41,14 @@ def parse_image_filename(name: str) -> tuple[str, str] | None:
     """'deskbuddy-c3-c3-battery-v2.0.0.bin' -> ('c3-battery', '2.0.0')."""
     match = _IMAGE_RE.fullmatch(name)
     return (match.group("env"), match.group("version")) if match else None
+
+
+def ota_image_filename(pio_env: str, semver: str) -> str:
+    """The app-only image for updates from the phone: 'deskbuddy-c3-ota-battery-v2.5.0.bin'."""
+    return f"deskbuddy-c3-ota-{to_friendly(pio_env)}-v{semver}.bin"
+
+
+def parse_ota_image_filename(name: str) -> tuple[str, str] | None:
+    """'deskbuddy-c3-ota-usb-v2.5.0.bin' -> ('c3', '2.5.0')."""
+    match = _OTA_RE.fullmatch(name)
+    return (ENV_MAP[match.group("build")], match.group("version")) if match else None

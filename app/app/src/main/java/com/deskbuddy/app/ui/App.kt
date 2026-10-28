@@ -46,8 +46,8 @@ fun DeskBuddyApp(actions: Actions) {
     }
 
     var tab by rememberSaveable { mutableStateOf("home") }
-    // the Voice tab only exists for DeskBuddy v2; switching to the C3 while on it shows Home
-    val shown = if (tab == "voice" && AppState.isC3) "home" else tab
+    // "voice" may be saved from app 0.5 (DeskBuddy v2): it is gone, show Home
+    val shown = if (tab == "voice") "home" else tab
     CompositionLocalProvider(LocalPal provides pal) {
         Column(Modifier.fillMaxSize().background(pal.bg)) {
             Header(AppState.connected, dark) { actions.setTheme(if (dark) "light" else "dark") }
@@ -55,12 +55,11 @@ fun DeskBuddyApp(actions: Actions) {
                 when (shown) {
                     "moods" -> MoodsScreen()
                     "inbox" -> InboxScreen(actions)
-                    "voice" -> VoiceScreen(actions)
                     "setup" -> SetupScreen(actions)
                     else -> HomeScreen(actions) { tab = "setup" }
                 }
             }
-            TabBar(shown, showVoice = !AppState.isC3) { tab = it }
+            TabBar(shown) { tab = it }
         }
     }
 }

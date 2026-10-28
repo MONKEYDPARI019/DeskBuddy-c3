@@ -1,5 +1,8 @@
 """Build firmware with PlatformIO and merge it into one flashable image (+ SHA256SUMS, manifest.json).
 
+Releases also carry each build's app-only image (deskbuddy-c3-ota-<build>-v<semver>.bin): the
+phone app downloads it for "Update DeskBuddy" and sends it over Bluetooth or WiFi (2.5.0+).
+
 Shared by `deskbuddy build` / `flash --local` and by scripts/merge_firmware.py (CI releases).
 Flash offsets come from `pio project metadata`, never hard-coded; for the ESP32-C3 the
 bootloader must sit at 0x0 and the app at 0x10000, which is asserted.
@@ -15,7 +18,14 @@ from typing import Any, Callable, Optional
 from deskbuddy import __version__
 from deskbuddy.builder import stream_command
 from deskbuddy.checksums import format_sha256sums, sha256_file
-from deskbuddy.envs import CHIP, image_filename, parse_image_filename, to_friendly
+from deskbuddy.envs import (
+    CHIP,
+    image_filename,
+    ota_image_filename,
+    parse_image_filename,
+    parse_ota_image_filename,
+    to_friendly,
+)
 from deskbuddy.errors import BuildError
 from deskbuddy.esptool_compat import Syntax, current_syntax, run_esptool
 from deskbuddy.versions import read_fw_version
@@ -43,6 +53,7 @@ class MergedImage:
     sha256: str
     size: int
     version: str
+    app: Optional[Path] = None  # the build's app-only image (what goes over the air)
 
 
 def parse_metadata_output(text: str) -> Any:
@@ -131,7 +142,21 @@ def build_and_merge(
     result = (esptool_runner or run_esptool)(merge_args(syntax or current_syntax(), images, out), on_line=on_line)
     if result.returncode != 0:
         raise BuildError("esptool could not merge the firmware images", _tail(result.output.splitlines()))
-    return MergedImage(pio_env, out, sha256_file(out), out.stat().st_size, version)
+    app = next(i.path for i in images if i.offset == APP_OFFSET)
+    return MergedImage(pio_env, out, sha256_file(out), out.stat().st_size, version, app)
+
+
+def write_ota_image(merged: MergedImage, out_dir: Path) -> Path:
+    """Copy the app-only image next to the merged one as deskbuddy-c3-ota-<build>-v<semver>.bin."""
+    if merged.app is None or not merged.app.is_file():
+        raise BuildError(f"No app image for {merged.env}", "Build the firmware first.")
+    data = merged.app.read_bytes()
+    if not data or data[0] != 0xE9:
+        raise BuildError(f"{merged.app} is not an ESP32 app image", "Run the build again.")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / ota_image_filename(merged.env, merged.version)
+    out.write_bytes(data)
+    return out
 
 
 def _write_lf(path: Path, text: str) -> None:
@@ -141,16 +166,25 @@ def _write_lf(path: Path, text: str) -> None:
 
 
 def write_release_files(out_dir: Path, version: str, tool_min_version: str = __version__) -> tuple[Path, Path]:
-    """Write SHA256SUMS and manifest.json for every deskbuddy-c3-*-v<version>.bin in out_dir."""
+    """Write SHA256SUMS and manifest.json for every deskbuddy-c3-*-v<version>.bin in out_dir.
+
+    The flashable images go in manifest "images" (what the tool installs); the app-only update
+    images, if any, in "ota_images" (what the phone app sends).
+    """
     found: list[tuple[str, Path]] = []
+    ota: list[tuple[str, Path]] = []
     for path in sorted(out_dir.glob(f"deskbuddy-c3-*-v{version}.bin")):
         parsed = parse_image_filename(path.name)
         if parsed and parsed[1] == version:
             found.append((parsed[0], path))
+        parsed_ota = parse_ota_image_filename(path.name)
+        if parsed_ota and parsed_ota[1] == version:
+            ota.append((parsed_ota[0], path))
     if not found:
         raise BuildError(f"No firmware images for v{version} in {out_dir}", "Build the firmware first.")
     found.sort(key=lambda item: (item[0] != "c3", item[0]))
-    hashes = {path.name: sha256_file(path) for _, path in found}
+    ota.sort(key=lambda item: (item[0] != "c3", item[0]))
+    hashes = {path.name: sha256_file(path) for _, path in found + ota}
     sums = out_dir / SUMS_FILE
     _write_lf(sums, format_sha256sums(hashes))
     manifest = {
@@ -170,6 +204,17 @@ def write_release_files(out_dir: Path, version: str, tool_min_version: str = __v
             for env, path in found
         ],
     }
+    if ota:
+        manifest["ota_images"] = [
+            {
+                "env": env,
+                "build": to_friendly(env),
+                "file": path.name,
+                "sha256": hashes[path.name],
+                "size": path.stat().st_size,
+            }
+            for env, path in ota
+        ]
     manifest_path = out_dir / MANIFEST_FILE
     _write_lf(manifest_path, json.dumps(manifest, indent=2) + "\n")
     return sums, manifest_path

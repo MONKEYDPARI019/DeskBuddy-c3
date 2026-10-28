@@ -76,6 +76,16 @@ class DeviceFwTest {
         assertEquals(false, DeviceFw.supportsClear("2.3.1"))       // DeskBuddy v2 firmware: not a C3
         assertEquals(false, DeviceFw.supportsClear("c3-garbage"))
     }
+
+    @Test fun updatesAndCallsNeedC3Firmware250OrNewer() {
+        assertTrue(DeviceFw.supportsOta("c3-2.5.0"))
+        assertTrue(DeviceFw.supportsCalls("c3-2.5.0"))
+        assertTrue(DeviceFw.supportsOta("c3-2.10.0"))
+        assertEquals(false, DeviceFw.supportsOta("c3-2.4.1"))      // needs one USB install of 2.5.0
+        assertEquals(false, DeviceFw.supportsCalls("c3-2.4.1"))
+        assertEquals(false, DeviceFw.supportsOta(""))
+        assertEquals(false, DeviceFw.supportsOta("2.5.0"))
+    }
 }
 
 class InboxSyncTest {

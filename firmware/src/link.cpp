@@ -48,6 +48,7 @@ bool linkTimeFromNetwork()    { return mode == LINK_WIFI && wifiTimeSynced(); }
 void linkForgetWifi()         { wifiForget(); }
 void linkRequestWifiSetup()   { wifiRequestSetup(); }
 void linkShutdown()           { if (mode == LINK_WIFI) wifiStop(); else bleStop(); }
+void linkFast(bool on)        { if (mode == LINK_BLE) bleFast(on); }   // WiFi is fast enough as it is
 
 const char* linkStateName() {
     switch (linkState()) {

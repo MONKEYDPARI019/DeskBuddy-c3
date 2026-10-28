@@ -7,6 +7,7 @@
 #include "config.h"
 #include "buttons.h"
 #include "logic/notif_store.h"
+#include "logic/call_state.h"
 
 enum class Screen : uint8_t { Clock = 0, Mochi, Notify, Count };
 
@@ -19,6 +20,7 @@ void appLoop();                              // timers, LEDs, state pushes
 // ---- actions --------------------------------------------------------------
 void appButton(const ButtonPress& p);
 void appNotify(const char* app, const char* title, const char* body);
+bool appCall(const char* state, const char* name, const char* app, const char* id);   // false: bad state
 void appSetScreen(Screen s);
 void appNextScreen();
 bool appFace(const char* name);              // mood or state name
@@ -44,3 +46,4 @@ int    appUnread();
 bool   appPopup(const Notification** n);     // a fresh notification to pop up?
 bool   appMessageActive(const char** title, const char** sub);
 bool   appRestarting();
+const CallState& appCallState();
